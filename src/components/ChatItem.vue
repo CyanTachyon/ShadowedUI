@@ -1,0 +1,176 @@
+<template>
+    <div :class="['friend-item', { active: isActive }]" @click="$emit('select')">
+        <!-- Icon -->
+        <div class="chat-icon-container unread-parent">
+            <template v-if="isGroup">
+                <div class="chat-icon">
+                    <svg class="group-icon-svg" viewBox="0 0 24 24">
+                        <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z" />
+                    </svg>
+                </div>
+            </template>
+            <template v-else>
+                <img v-if="otherId" :src="getAvatarUrl(otherId)" class="user-avatar" alt="avatar" loading="lazy" @error="handleImageError" />
+                <div v-else class="chat-icon initial">{{ initial }}</div>
+            </template>
+            <div v-if="unreadCount > 0" class="unread-badge" :class="{ 'do-not-disturb': doNotDisturb }">
+                {{ unreadCount > 99 ? '…' : unreadCount }}
+            </div>
+        </div>
+
+        <!-- Info -->
+        <div class="chat-info">
+            <span class="name">{{ displayName }}</span>
+            <span class="status">{{ statusText }}</span>
+        </div>
+    </div>
+</template>
+
+<script setup lang="ts">
+import { computed } from 'vue';
+import type { Chat } from '@/types';
+import { getAvatarUrl } from '@/utils/helpers';
+
+const props = defineProps<{
+    chat: Chat;
+    isActive: boolean;
+}>();
+
+defineEmits<{
+    select: [];
+}>();
+
+const isGroup = computed(() => !props.chat.isPrivate);
+
+const displayName = computed(() => props.chat.name || 'Chat ' + props.chat.chatId);
+
+const initial = computed(() =>
+{
+    const name = displayName.value;
+    return name && name.length > 0 ? name[0].toUpperCase() : '?';
+});
+
+const otherId = computed(() =>
+{
+    return props.chat.parsedOtherIds && props.chat.parsedOtherIds.length > 0
+        ? props.chat.parsedOtherIds[0]
+        : null;
+});
+
+const unreadCount = computed(() => props.chat.unreadCount || 0);
+const doNotDisturb = computed(() => props.chat.doNotDisturb || false);
+
+const statusText = computed(() =>
+{
+    if (isGroup.value)
+    {
+        const memberCount = props.chat.parsedOtherIds
+            ? props.chat.parsedOtherIds.length + 1
+            : (props.chat.parsedOtherNames?.length || 0) + 1;
+        return `${memberCount} members`;
+    }
+    return 'Private chat';
+});
+
+function handleImageError(e: Event)
+{
+    const img = e.target as HTMLImageElement;
+    img.style.display = 'none';
+}
+</script>
+
+<style scoped>
+.friend-item {
+    padding: 1rem;
+    border-bottom: 1px solid var(--border-color);
+    cursor: pointer;
+    transition: background-color 0.2s;
+    display: flex;
+    align-items: center;
+}
+
+.friend-item:hover,
+.friend-item.active {
+    background-color: rgba(88, 166, 255, 0.1);
+}
+
+.chat-icon-container {
+    position: relative;
+    margin-right: 12px;
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+}
+
+.chat-icon {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--border-color);
+    border-radius: 10px;
+}
+
+.chat-icon.initial {
+    background: var(--primary-color);
+    color: white;
+    border-radius: 50%;
+    font-size: 1.2rem;
+}
+
+.group-icon-svg {
+    width: 24px;
+    height: 24px;
+    fill: var(--primary-color);
+}
+
+.user-avatar {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
+    background-color: var(--border-color);
+}
+
+.unread-badge {
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    background-color: #ff3b30;
+    color: white;
+    width: 18px;
+    height: 18px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    border-radius: 50%;
+    font-size: 0.75rem;
+    font-weight: bold;
+    border: 2px solid var(--panel-bg);
+    box-sizing: content-box;
+    z-index: 10;
+}
+
+.unread-badge.do-not-disturb {
+    background-color: var(--secondary-color);
+}
+
+.chat-info {
+    flex: 1;
+    overflow: hidden;
+}
+
+.name {
+    font-weight: bold;
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.status {
+    font-size: 0.8em;
+    color: var(--secondary-color);
+}
+</style>
