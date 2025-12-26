@@ -65,7 +65,6 @@ async function uploadAvatar(event: Event)
     {
         await uploadAvatarApi(file, userStore.currentUser.username, userStore.authToken);
         chatStore.showToast('Avatar updated', 'success');
-        // Force refresh avatar by updating the URL
     }
     catch (e: any)
     {

@@ -6,7 +6,7 @@
             </div>
             <template v-else>
                 <BroadcastMessage v-for="broadcast in reversedBroadcasts" :key="broadcast.id" :broadcast="broadcast" />
-                <div ref="broadcastTriggerRef" class="load-trigger"></div>
+                <div ref="broadcastTriggerRef" class="load-trigger"> {{ chatStore.hasMoreBroadcasts ? 'Loading more broadcasts...' : 'No more broadcasts' }}</div>
             </template>
         </template>
         <template v-else>
@@ -18,7 +18,7 @@
             </div>
             <template v-else>
                 <MessageBubble v-for="message in chatStore.currentChatMessages" :key="message.id" :message="message" />
-                <div ref="loadTriggerRef" class="load-trigger"></div>
+                <div ref="loadTriggerRef" class="load-trigger"> {{ chatStore.hasMoreMessages ? 'Loading more messages...' : 'No more messages' }} </div>
             </template>
         </template>
     </div>
@@ -167,7 +167,9 @@ onUnmounted(() =>
 }
 
 .load-trigger {
-    height: 1px;
-    flex-shrink: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 3px;
 }
 </style>
