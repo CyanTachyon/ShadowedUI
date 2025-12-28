@@ -1,6 +1,7 @@
 import { createApp } from 'vue';
 import { createPinia } from 'pinia';
 import App from './App.vue';
+import { useUserStore } from './stores';
 
 const app = createApp(App);
 const pinia = createPinia();
@@ -12,3 +13,5 @@ if ('Notification' in window && Notification.permission !== 'granted' && Notific
 {
     Notification.requestPermission();
 }
+
+useUserStore().tryAutoLogin();

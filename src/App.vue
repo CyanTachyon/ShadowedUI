@@ -94,6 +94,11 @@ function setupWebSocketHandlers()
         chatStore.handleReceiveMessage(data);
     });
 
+    wsService.on('message_edited', (data) =>
+    {
+        chatStore.handleMessageEdited(data);
+    });
+
     wsService.on('friends_list', (data) =>
     {
         chatStore.setFriends(data.friends);
@@ -130,8 +135,6 @@ function setupWebSocketHandlers()
     {
         if (userStore.authToken && userStore.username)
             userStore.relogin();
-        else
-            await userStore.tryAutoLogin();
     });
 
     wsService.onDisconnect(() =>

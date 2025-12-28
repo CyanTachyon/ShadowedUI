@@ -217,7 +217,9 @@ export const useChatStore = defineStore('chat', () =>
     function mergeMessages(messages: Message[])
     {
         const map = new Map(currentChatMessages.value.map(m => [m.id, m]));
-        for (const m of messages) map.set(m.id, m);
+        for (const m of messages) 
+            if (m.type === 'TEXT' && !m.content) map.delete(m.id);
+            else map.set(m.id, m);
         currentChatMessages.value = Array.from(map.values()).sort((a, b) => b.id - a.id);
     }
 
@@ -248,6 +250,29 @@ export const useChatStore = defineStore('chat', () =>
                 if (chat) selectChat(chat);
             });
         }
+    }
+
+    // Handle message edit response
+    function handleMessageEdited(data: { messageId: number; content: string; chatId: number; }): void
+    {
+        // 更新当前聊天中的消息
+        const messageIndex = currentChatMessages.value.findIndex(m => m.id === data.messageId);
+        if (messageIndex !== -1)
+        {
+            currentChatMessages.value[messageIndex] = {
+                ...currentChatMessages.value[messageIndex],
+                content: data.content
+            };
+        }
+    }
+
+    // Edit or delete (withdraw) a message
+    function editMessage(messageId: number, message: string | null): void
+    {
+        wsService.sendPacket('edit_message', {
+            messageId,
+            message
+        });
     }
 
     // Broadcast handling
@@ -613,6 +638,8 @@ export const useChatStore = defineStore('chat', () =>
         loadMoreMessages,
         handleMessagesList,
         handleReceiveMessage,
+        handleMessageEdited,
+        editMessage,
         openBroadcasts,
         loadBroadcasts,
         loadMoreBroadcasts,

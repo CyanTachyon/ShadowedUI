@@ -17,7 +17,7 @@
                 Select a chat to start messaging
             </div>
             <template v-else>
-                <MessageBubble v-for="message in chatStore.currentChatMessages" :key="message.id" :message="message" />
+                <MessageBubble v-for="message in chatStore.currentChatMessages.filter(msg => msg.chatId === chatStore.currentChatId)" :key="message.id" :message="message" />
                 <div ref="loadTriggerRef" class="load-trigger"> {{ chatStore.hasMoreMessages ? 'Loading more messages...' : 'No more messages' }} </div>
             </template>
         </template>
@@ -171,5 +171,6 @@ onUnmounted(() =>
     justify-content: center;
     align-items: center;
     padding: 3px;
+    opacity: 0.5;
 }
 </style>

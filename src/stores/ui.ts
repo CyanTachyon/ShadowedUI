@@ -10,6 +10,8 @@ export const useUIStore = defineStore('ui', () =>
         (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
     );
 
+    const chatBackground = ref<string | null>(localStorage.getItem('chatBackground'));
+
     const viewState = ref<ViewState>('list');
     const showAddFriendModal = ref(false);
     const showCreateGroupModal = ref(false);
@@ -88,6 +90,19 @@ export const useUIStore = defineStore('ui', () =>
         deleteChatTarget.value = null;
     }
 
+    function setChatBackground(imageData: string | null): void
+    {
+        chatBackground.value = imageData;
+        if (imageData)
+        {
+            localStorage.setItem('chatBackground', imageData);
+        }
+        else
+        {
+            localStorage.removeItem('chatBackground');
+        }
+    }
+
     return {
         theme,
         viewState,
@@ -107,6 +122,8 @@ export const useUIStore = defineStore('ui', () =>
         openKickMemberModal,
         closeKickMemberModal,
         openDeleteChatModal,
-        closeDeleteChatModal
+        closeDeleteChatModal,
+        chatBackground,
+        setChatBackground
     };
 });

@@ -1,7 +1,7 @@
 <template>
     <div class="input-area">
 
-        <textarea id="message-in" v-model="messageText" :placeholder="placeholder" :disabled="!canSend" @keydown="handleKeyDown"></textarea>
+        <textarea id="message-in" v-model="messageText" :placeholder="placeholder" :disabled="!canSend" @keydown="handleKeyDown" @compositionstart="isComposing = true" @compositionend="isComposing = false"></textarea>
 
         <button v-if="chatStore.isBroadcastView" :class="['anon-btn', { active: isAnonymous }]" @click="isAnonymous = !isAnonymous">
             anon
@@ -32,6 +32,7 @@ const userStore = useUserStore();
 
 const messageText = ref('');
 const isAnonymous = ref(false);
+const isComposing = ref(false); // 用于检测输入法组合输入状态
 
 const canSend = computed(() => chatStore.isBroadcastView || chatStore.currentChatId !== null);
 
@@ -44,6 +45,9 @@ function handleKeyDown(e: KeyboardEvent)
 {
     if (e.key === 'Enter')
     {
+        // 如果正在进行输入法组合输入，不发送消息
+        if (isComposing.value) return;
+        
         if (!!isMobileDevice() === !!e.shiftKey)
         {
             e.preventDefault();

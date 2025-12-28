@@ -24,14 +24,14 @@
 
             <!-- Members Section -->
             <div class="settings-section">
-                <div class="section-title">Members ({{ members.length }})</div>
+                <div class="section-title" v-if="!isPrivate">Members ({{ members.length }})</div>
 
                 <button v-if="!isPrivate" class="button invite-btn" @click="showInviteModal">
                     Invite Member
                 </button>
 
                 <div class="member-list">
-                    <div v-for="member in members" :key="member.id" class="member-item">
+                    <div v-for="member in members.filter(m => m.id !== myId || !isPrivate)" :key="member.id" class="member-item">
                         <img :src="getAvatarUrl(member.id)" class="member-avatar" alt="avatar" @click="startPrivateChat(member.username)" />
                         <span class="member-name" @click="startPrivateChat(member.username)">
                             {{ member.username }}
@@ -42,6 +42,11 @@
                             kick
                         </button>
                     </div>
+                </div>
+                <!-- Show other member's signature in private chat -->
+                <div v-if="isPrivate && otherMemberSignature" class="signature-section">
+                    <div class="signature-label">Signature</div>
+                    <div class="signature-content">{{ otherMemberSignature }}</div>
                 </div>
             </div>
 
@@ -94,6 +99,13 @@ const myId = computed(() =>
 });
 
 const isOwner = computed(() => ownerId.value === myId.value);
+
+const otherMemberSignature = computed(() =>
+{
+    if (!isPrivate.value) return null;
+    const otherMember = members.value.find(m => m.id !== myId.value);
+    return otherMember?.signature || null;
+});
 
 function renameChat()
 {
@@ -334,6 +346,26 @@ function deleteChat()
 
 .delete-chat-btn:hover {
     background: #c0392b;
+}
+
+.signature-section {
+    margin-top: 15px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border-color);
+}
+
+.signature-label {
+    font-size: 0.8em;
+    color: var(--secondary-color);
+    text-transform: uppercase;
+    margin-bottom: 5px;
+}
+
+.signature-content {
+    font-size: 0.9em;
+    color: var(--text-color);
+    font-style: italic;
+    word-break: break-word;
 }
 
 @media (max-width: 768px) {

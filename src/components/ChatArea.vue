@@ -1,7 +1,7 @@
 <template>
     <div class="chat-area">
         <ChatHeader />
-        <div class="chat-content">
+        <div class="chat-content" :style="chatContentStyle">
             <MessagesContainer />
             <ChatSettingsPanel v-if="chatStore.showSettingsPanel" />
         </div>
@@ -10,13 +10,29 @@
 </template>
 
 <script setup lang="ts">
-import { useChatStore } from '@/stores';
+import { computed } from 'vue';
+import { useChatStore, useUIStore } from '@/stores';
 import ChatHeader from './ChatHeader.vue';
 import MessagesContainer from './MessagesContainer.vue';
 import ChatSettingsPanel from './ChatSettingsPanel.vue';
 import InputArea from './InputArea.vue';
 
 const chatStore = useChatStore();
+const uiStore = useUIStore();
+
+const chatContentStyle = computed(() =>
+{
+    if (uiStore.chatBackground)
+    {
+        return {
+            backgroundImage: `url(${uiStore.chatBackground})`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            backgroundRepeat: 'no-repeat'
+        };
+    }
+    return {};
+});
 </script>
 
 <style scoped>
@@ -25,6 +41,8 @@ const chatStore = useChatStore();
     display: flex;
     flex-direction: column;
     background-color: var(--bg-color);
+    min-width: 0; /* 防止子元素撑大容器 */
+    overflow: hidden;
 }
 
 .chat-content {

@@ -8,6 +8,7 @@ export interface User
     username: string;
     publicKey?: string;
     privateKey?: string;
+    signature?: string;
 }
 
 export interface Chat
@@ -30,7 +31,7 @@ export interface Message
     senderId: number;
     senderName?: string;
     content: string;
-    type: 'text' | 'image';
+    type: 'TEXT' | 'IMAGE';
     time: string;
 }
 
@@ -48,6 +49,7 @@ export interface ChatMember
 {
     id: number;
     username: string;
+    signature?: string;
 }
 
 export interface ChatDetails

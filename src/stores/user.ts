@@ -213,13 +213,6 @@ export const useUserStore = defineStore('user', () =>
                 authToken.value = storedAuthToken;
                 passwordKey.value = await importPasswordKey(storedPasswordKey);
                 username.value = storedUsername;
-                
-                // 发送登录请求
-                const packet = {
-                    username: storedUsername,
-                    password: storedAuthToken
-                };
-                wsService.sendPacketDirect('login', packet);
                 return true;
             }
             catch (e)

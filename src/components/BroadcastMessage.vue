@@ -1,7 +1,7 @@
 <template>
     <div :class="['broadcast-message', broadcastClass]">
         <div class="header">
-            <img v-if="showAvatar" :src="getAvatarUrl(broadcast.senderId!)" class="broadcast-avatar" alt="avatar" loading="lazy" />
+            <img v-if="showAvatar" :src="getAvatarUrl(broadcast.senderId!)" class="broadcast-avatar" alt="avatar" loading="lazy" @click="handleSenderClick" />
             <div :class="['broadcast-sender', senderClass]" :style="{ cursor: isClickable ? 'pointer' : 'default' }" @click="handleSenderClick">
                 {{ senderDisplay }}
             </div>
@@ -117,6 +117,7 @@ function handleSenderClick()
     border-radius: 50%;
     margin-right: 10px;
     object-fit: cover;
+    cursor: pointer;
 }
 
 .broadcast-sender {
@@ -144,6 +145,8 @@ function handleSenderClick()
 .broadcast-content {
     border-radius: 8px;
     word-wrap: break-word;
+    overflow-wrap: break-word;
+    word-break: break-word;
     line-height: 1.5;
     white-space: pre-wrap;
 }

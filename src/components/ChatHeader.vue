@@ -3,7 +3,7 @@
         <button class="icon-button mobile-only" @click="goBack">←</button>
         <div class="chat-title">
             <template v-if="chatStore.isBroadcastView">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 8px">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 8px; min-width: 24px; min-height: 24px; max-width: 24px; max-height: 24px;">
                     <circle cx="12" cy="12" r="10"></circle>
                     <line x1="12" y1="8" x2="12" y2="12"></line>
                     <line x1="12" y1="16" x2="12.01" y2="16"></line>
@@ -74,10 +74,21 @@ function goBack()
     height: 42px;
 }
 
+/* 聊天标题容器，防止标题过长挤出设置按钮 */
 .chat-title {
     display: flex;
     align-items: center;
     flex: 1;
+    min-width: 0; /* 允许子元素收缩 */
+    overflow: hidden; /* 防止撑大容器 */
+}
+
+/* 聊天标题文本省略号样式 */
+.chat-title span {
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .chat-avatar {
