@@ -15,6 +15,12 @@
 
         <!-- Message content -->
         <div class="content">
+            <!-- Reply info -->
+            <div v-if="message.replyTo" class="reply-info" @click="handleReplyContentClick">
+                <span class="reply-sender">{{ message.replyTo.senderName }}:</span>
+                <span class="reply-content" :class="{ 'clickable': isReplyToImage }">{{ decryptedReplyContent ? truncateContent(decryptedReplyContent) : '[Decrypting...]' }}</span>
+            </div>
+
             <template v-if="!chatKey">
                 [Key Not Available]
             </template>
@@ -26,7 +32,10 @@
                     <!-- 占位图：与原图尺寸相同，防止布局跳动 -->
                     <img v-if="imagePlaceholder" :src="imagePlaceholder" class="message-image placeholder-image" alt="" />
                     <!-- 实际图片：加载后覆盖占位图 -->
-                    <img v-if="imageUrl" :src="imageUrl" class="message-image" :class="{ 'overlay-image': imageMetadata }" alt="Image" />
+                    <div v-if="imageUrl" class="image-wrapper" :class="{ 'overlay-image': imageMetadata }" @click="openImageViewer">
+                        <img :src="imageUrl" class="message-image" alt="Image" />
+                        <div class="image-hint">Click to view</div>
+                    </div>
                     <!-- 没有元数据时的加载提示 -->
                     <div v-if="!imagePlaceholder && !imageUrl" class="loading-image">Loading image...</div>
                 </div>
@@ -55,6 +64,13 @@
         :message="message"
         @close="editModalVisible = false"
     />
+
+    <!-- Image Viewer Modal -->
+    <ImageViewerModal
+        :visible="imageViewerVisible"
+        :imageUrl="viewingImageUrl"
+        @close="imageViewerVisible = false"
+    />
 </template>
 
 <script setup lang="ts">
@@ -66,6 +82,7 @@ import { getAvatarUrl, formatDate, getUserId } from '@/utils/helpers';
 import { fetchMessageFile } from '@/services/api';
 import ContextMenu, { type ContextMenuItem } from './ContextMenu.vue';
 import EditMessageModal from './modals/EditMessageModal.vue';
+import ImageViewerModal from './modals/ImageViewerModal.vue';
 
 const props = defineProps<{
     message: Message;
@@ -75,9 +92,12 @@ const chatStore = useChatStore();
 const userStore = useUserStore();
 
 const decryptedContent = ref<string>('[Decrypting...]');
+const decryptedReplyContent = ref<string>('');
 const imageUrl = ref<string | null>(null);
 const imagePlaceholder = ref<string | null>(null);
 const imageMetadata = ref<{ width: number; height: number; } | null>(null);
+const viewingImageUrl = ref<string | null>(null);
+const imageViewerVisible = ref(false);
 
 // Context menu state
 const contextMenuVisible = ref(false);
@@ -107,10 +127,17 @@ const showSender = computed(() =>
     return chat && !chat.isPrivate;
 });
 
+const isReplyToImage = computed(() =>
+{
+    return props.message.replyTo?.type && props.message.replyTo.type.toLowerCase() === 'image';
+});
+
 // Context menu items - 可扩展，根据消息类型和所有者动态生成
 const contextMenuItems = computed<ContextMenuItem[]>(() =>
 {
     const items: ContextMenuItem[] = [];
+    // Add reply option for both text and image messages
+    items.push({ id: 'reply', label: 'Reply', icon: '↩️' });
     if (props.message.type.toLowerCase() === 'text')
         items.push({ id: 'copy', label: 'Copy', icon: '📋' });
     if (props.message.type.toLowerCase() === 'image')
@@ -119,7 +146,7 @@ const contextMenuItems = computed<ContextMenuItem[]>(() =>
         items.push({ id: 'edit', label: 'Edit', icon: '✏️' });
     if (isMe.value)
         items.push({ id: 'delete', label: 'Delete', icon: '🗑️' });
-    
+
     return items;
 });
 
@@ -189,6 +216,9 @@ async function handleMenuSelect(item: ContextMenuItem)
 {
     switch (item.id)
     {
+        case 'reply':
+            chatStore.setReplyingTo(props.message);
+            break;
         case 'copy':
             await copyMessage();
             break;
@@ -322,6 +352,12 @@ async function decryptMessage()
             const blob = new Blob([imageData]);
             imageUrl.value = URL.createObjectURL(blob);
         }
+
+        // 同时解密引用消息内容
+        if (props.message.replyTo)
+        {
+            decryptedReplyContent.value = await decryptReplyContent(props.message.replyTo);
+        }
     }
     catch (e)
     {
@@ -331,7 +367,111 @@ async function decryptMessage()
 }
 
 onMounted(decryptMessage);
-watch(() => ({ content: props.message.content, type: props.message.type }), decryptMessage);
+watch(() => ({ content: props.message.content, type: props.message.type, replyTo: props.message.replyTo }), decryptMessage);
+
+async function decryptReplyContent(replyTo: { content: string; type?: 'TEXT' | 'IMAGE'; senderId: number; senderName: string; }): Promise<string>
+{
+    if (!chatKey.value)
+    {
+        return '[Key Not Available]';
+    }
+
+    try
+    {
+        // 引用消息的内容是加密的，需要先解密
+        const decrypted = await decryptMessageString(replyTo.content, chatKey.value);
+
+        // 如果有 type 字段且是图片，直接返回 "Image"
+        if (replyTo.type && replyTo.type.toLowerCase() === 'image')
+        {
+            return '📷 Image';
+        }
+
+        // 如果没有 type 字段（旧数据），尝试通过解密后的内容判断
+        try
+        {
+            const metadata = JSON.parse(decrypted);
+            if (typeof metadata.width === 'number' && typeof metadata.height === 'number')
+            {
+                return '📷 Image';
+            }
+        }
+        catch
+        {
+            // 解析失败，说明是文本消息，直接返回解密后的内容
+        }
+
+        return decrypted;
+    }
+    catch (e)
+    {
+        console.error('Reply message decryption error', e);
+        return '[Decryption Error]';
+    }
+}
+
+function truncateContent(content: string): string
+{
+    return content.length > 50 ? content.substring(0, 50) + '...' : content;
+}
+
+async function openImageViewer()
+{
+    if (imageUrl.value)
+    {
+        viewingImageUrl.value = imageUrl.value;
+        imageViewerVisible.value = true;
+    }
+}
+
+async function handleReplyContentClick()
+{
+    if (!props.message.replyTo) return;
+
+    // 先检查是否是图片
+    const isImage = props.message.replyTo.type
+        ? props.message.replyTo.type.toLowerCase() === 'image'
+        : await isReplyContentImage();
+
+    if (!isImage) return; // 不是图片，不做任何操作
+
+    // 是图片，加载并显示
+    try
+    {
+        const base64 = await fetchMessageFile(props.message.replyTo.messageId);
+        const key = chatKey.value;
+        if (key)
+        {
+            const imageData = await decryptMessageBytes(base64, key);
+            const blob = new Blob([imageData]);
+            const url = URL.createObjectURL(blob);
+            viewingImageUrl.value = url;
+            imageViewerVisible.value = true;
+        }
+    }
+    catch (e)
+    {
+        console.error('Failed to load reply image', e);
+        chatStore.showToast('Failed to load image', 'error');
+    }
+}
+
+// 辅助函数：判断引用内容是否是图片（用于旧数据）
+async function isReplyContentImage(): Promise<boolean>
+{
+    if (!chatKey.value) return false;
+
+    try
+    {
+        const decrypted = await decryptMessageString(props.message.replyTo!.content, chatKey.value);
+        const metadata = JSON.parse(decrypted);
+        return typeof metadata.width === 'number' && typeof metadata.height === 'number';
+    }
+    catch
+    {
+        return false;
+    }
+}
 </script>
 
 <style scoped>
@@ -382,25 +522,86 @@ watch(() => ({ content: props.message.content, type: props.message.type }), decr
     white-space: pre-wrap;
 }
 
+.reply-info {
+    padding: 6px 10px;
+    margin-bottom: 6px;
+    border-left: 3px solid var(--primary-color);
+    background-color: rgba(0, 0, 0, 0.1);
+    border-radius: 4px;
+}
+
+.message.sent .reply-info {
+    border-left-color: rgba(255, 255, 255, 0.7);
+    background-color: rgba(255, 255, 255, 0.15);
+}
+
+.reply-sender {
+    font-weight: bold;
+    font-size: 0.85em;
+    margin-right: 6px;
+}
+
+.reply-content {
+    font-size: 0.9em;
+    opacity: 0.8;
+    font-style: italic;
+}
+
+.reply-content.clickable {
+    cursor: pointer;
+    text-decoration: underline;
+    text-decoration-style: dotted;
+    text-decoration-color: rgba(0, 0, 0, 0.3);
+}
+
+.message.sent .reply-content.clickable {
+    text-decoration-color: rgba(255, 255, 255, 0.3);
+}
+
 .image-container {
     position: relative;
+}
+
+.image-wrapper {
+    position: relative;
+    cursor: pointer;
+    display: inline-block;
+}
+
+.image-hint {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    color: white;
+    padding: 4px 8px;
+    font-size: 12px;
+    text-align: center;
+    opacity: 0;
+    transition: opacity 0.2s;
+    pointer-events: none;
+}
+
+.image-wrapper:hover .image-hint {
+    opacity: 1;
 }
 
 .message-image {
     max-width: 100%;
     max-height: 300px;
     border-radius: 4px;
+    display: block;
 }
 
 .placeholder-image {
     opacity: 0;
 }
 
-.overlay-image {
+.image-wrapper.overlay-image {
     position: absolute;
     top: 0;
     left: 0;
-    z-index: 1;
 }
 
 .loading-image {

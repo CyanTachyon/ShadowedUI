@@ -1,36 +1,47 @@
 <template>
     <div class="input-area">
+        <!-- Reply preview -->
+        <div v-if="chatStore.replyingToMessage" class="reply-preview">
+            <div class="reply-preview-header">
+                <span class="reply-preview-label">Replying to {{ chatStore.replyingToMessage.senderName }}:</span>
+                <button class="reply-cancel-btn" @click="chatStore.clearReplyingTo()">✕</button>
+            </div>
+            <div class="reply-preview-content">{{ decryptedReplyContent ? truncateReplyContent(decryptedReplyContent) : '[Decrypting...]' }}</div>
+        </div>
 
-        <textarea id="message-in" v-model="messageText" :placeholder="placeholder" :disabled="!canSend" @keydown="handleKeyDown" @compositionstart="isComposing = true" @compositionend="isComposing = false"></textarea>
+        <div class="input-area-inner">
+            <textarea id="message-in" v-model="messageText" :placeholder="placeholder" :disabled="!canSend" @keydown="handleKeyDown" @compositionstart="isComposing = true" @compositionend="isComposing = false"></textarea>
 
-        <button v-if="chatStore.isBroadcastView" :class="['anon-btn', { active: isAnonymous }]" @click="isAnonymous = !isAnonymous">
-            anon
-        </button>
+            <button v-if="chatStore.isBroadcastView" :class="['anon-btn', { active: isAnonymous }]" @click="isAnonymous = !isAnonymous">
+                anon
+            </button>
 
-        <button v-if="!chatStore.isBroadcastView" class="button media-btn" :disabled="!canSend" @click="sendImage">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-                <circle cx="8.5" cy="8.5" r="1.5" />
-                <polyline points="21 15 16 10 5 21" />
-            </svg>
-        </button>
+            <button v-if="!chatStore.isBroadcastView" class="button media-btn" :disabled="!canSend" @click="sendImage">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                    <circle cx="8.5" cy="8.5" r="1.5" />
+                    <polyline points="21 15 16 10 5 21" />
+                </svg>
+            </button>
 
-        <button class="button send-btn" :disabled="!canSend" @click="send">Send</button>
+            <button class="button send-btn" :disabled="!canSend" @click="send">Send</button>
+        </div>
     </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { useChatStore, useUserStore } from '@/stores';
 import { wsService } from '@/services/websocket';
 import { sendFileMessage } from '@/services/api';
-import { encryptMessageString, encryptMessageBytes } from '@/utils/crypto';
+import { encryptMessageString, encryptMessageBytes, decryptMessageString } from '@/utils/crypto';
 import { isMobileDevice, getImageSizeFromArrayBuffer } from '@/utils/helpers';
 
 const chatStore = useChatStore();
 const userStore = useUserStore();
 
 const messageText = ref('');
+const decryptedReplyContent = ref<string>('');
 const isAnonymous = ref(false);
 const isComposing = ref(false); // 用于检测输入法组合输入状态
 
@@ -40,6 +51,57 @@ const placeholder = computed(() =>
 {
     return chatStore.isBroadcastView ? 'Send broadcast...' : 'Type a message...';
 });
+
+// Watch for reply message changes and decrypt content
+watch(() => chatStore.replyingToMessage, async (newMessage) =>
+{
+    if (newMessage && chatStore.currentChatId)
+    {
+        const chatKey = chatStore.getChatKey(chatStore.currentChatId);
+        if (chatKey)
+        {
+            try
+            {
+                decryptedReplyContent.value = await decryptReplyContent(newMessage, chatKey);
+            }
+            catch (e)
+            {
+                console.error('Failed to decrypt reply content', e);
+                decryptedReplyContent.value = '[Decryption Error]';
+            }
+        }
+        else
+        {
+            decryptedReplyContent.value = '[Key Not Available]';
+        }
+    }
+    else
+    {
+        decryptedReplyContent.value = '';
+    }
+}, { immediate: true });
+
+async function decryptReplyContent(replyTo: { content: string; type: 'TEXT' | 'IMAGE'; senderId: number; senderName?: string; }, chatKey: CryptoKey): Promise<string>
+{
+    try
+    {
+        // 如果被引用的是图片消息，显示"[Image]"
+        if (replyTo.type && replyTo.type.toLowerCase() === 'image')
+        {
+            return '📷 Image';
+        }
+
+        // 引用消息的内容是加密的，需要先解密
+        const decrypted = await decryptMessageString(replyTo.content, chatKey);
+
+        return decrypted;
+    }
+    catch (e)
+    {
+        console.error('Reply message decryption error', e);
+        return '[Decryption Error]';
+    }
+}
 
 function handleKeyDown(e: KeyboardEvent)
 {
@@ -90,12 +152,16 @@ async function sendMessage(text: string)
     try
     {
         const encrypted = await encryptMessageString(text, chatKey);
+        const replyTo = chatStore.replyingToMessage?.id || null;
+
         wsService.sendPacket('send_message', {
             chatId: chatStore.currentChatId,
             message: encrypted,
-            type: 'text'
+            type: 'text',
+            replyTo
         });
         messageText.value = '';
+        chatStore.clearReplyingTo();
     }
     catch (e: any)
     {
@@ -165,6 +231,11 @@ async function sendImage()
 
     fileInput.click();
 }
+
+function truncateReplyContent(content: string): string
+{
+    return content.length > 60 ? content.substring(0, 60) + '...' : content;
+}
 </script>
 
 <style scoped>
@@ -173,8 +244,77 @@ async function sendImage()
     border-top: 1px solid var(--border-color);
     background-color: var(--panel-bg);
     display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.input-area-inner {
+    display: flex;
     gap: 0.5rem;
     align-items: flex-end;
+}
+
+.reply-preview {
+    background-color: var(--input-bg);
+    border-left: 3px solid var(--primary-color);
+    padding: 6px 10px;
+    border-radius: 4px;
+    animation: slideDown 0.2s ease;
+}
+
+.reply-preview-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+}
+
+.reply-preview-label {
+    font-size: 0.85em;
+    font-weight: bold;
+    color: var(--primary-color);
+}
+
+.reply-cancel-btn {
+    background: none;
+    border: none;
+    color: var(--secondary-color);
+    cursor: pointer;
+    padding: 0;
+    font-size: 14px;
+    line-height: 1;
+    width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: all 0.2s;
+}
+
+.reply-cancel-btn:hover {
+    background-color: var(--secondary-color);
+    color: var(--input-bg);
+}
+
+.reply-preview-content {
+    font-size: 0.9em;
+    opacity: 0.8;
+    font-style: italic;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 #message-in {

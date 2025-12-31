@@ -22,6 +22,7 @@ export const useChatStore = defineStore('chat', () =>
     const currentChatMessages = ref<Message[]>([]);
     const chatKeys = ref<Map<number, CryptoKey>>(new Map());
     const currentChatDetails = ref<ChatDetails['chat'] | null>(null);
+    const replyingToMessage = ref<Message | null>(null);
     const isDoNotDisturb = ref(false);
 
     // Broadcast state
@@ -183,6 +184,7 @@ export const useChatStore = defineStore('chat', () =>
         currentChatOffset.value = 0;
         hasMoreMessages.value = true;
         showSettingsPanel.value = false;
+        replyingToMessage.value = null;
         messagesLoading.value = true;
 
         uiStore.setViewState('chat');
@@ -676,6 +678,16 @@ export const useChatStore = defineStore('chat', () =>
         });
     }
 
+    function setReplyingTo(message: Message): void
+    {
+        replyingToMessage.value = message;
+    }
+
+    function clearReplyingTo(): void
+    {
+        replyingToMessage.value = null;
+    }
+
     return {
         // State
         chats,
@@ -683,6 +695,7 @@ export const useChatStore = defineStore('chat', () =>
         currentChatMessages,
         chatKeys,
         currentChatDetails,
+        replyingToMessage,
         isDoNotDisturb,
         isBroadcastView,
         currentBroadcasts,
@@ -738,7 +751,9 @@ export const useChatStore = defineStore('chat', () =>
         handleUnreadCount,
         openMoments,
         switchToChats,
-        viewUserMoments
+        viewUserMoments,
+        setReplyingTo,
+        clearReplyingTo
     };
 });
 

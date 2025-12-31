@@ -24,6 +24,15 @@ export interface Chat
     doNotDisturb: boolean;
 }
 
+export interface ReplyInfo
+{
+    messageId: number;
+    content: string;
+    senderId: number;
+    senderName: string;
+    type: 'TEXT' | 'IMAGE';
+}
+
 export interface Message
 {
     id: number;
@@ -33,6 +42,7 @@ export interface Message
     content: string;
     type: 'TEXT' | 'IMAGE';
     time: string;
+    replyTo?: ReplyInfo;
 }
 
 export interface Broadcast
