@@ -83,7 +83,11 @@ import { fetchMessageFile } from '@/services/api';
 import ContextMenu, { type ContextMenuItem } from './ContextMenu.vue';
 import EditMessageModal from './modals/EditMessageModal.vue';
 import ImageViewerModal from './modals/ImageViewerModal.vue';
-
+import ReplyIcon from './icons/ReplyIcon.vue';
+import EditIcon from './icons/EditIcon.vue';
+import DeleteIcon from './icons/DeleteIcon.vue';
+import CopyIcon from './icons/CopyIcon.vue';
+import DownloadIcon from './icons/DownloadIcon.vue';
 const props = defineProps<{
     message: Message;
 }>();
@@ -137,15 +141,15 @@ const contextMenuItems = computed<ContextMenuItem[]>(() =>
 {
     const items: ContextMenuItem[] = [];
     // Add reply option for both text and image messages
-    items.push({ id: 'reply', label: 'Reply', icon: '↩️' });
+    items.push({ id: 'reply', label: 'Reply', icon: ReplyIcon });
     if (props.message.type.toLowerCase() === 'text')
-        items.push({ id: 'copy', label: 'Copy', icon: '📋' });
+        items.push({ id: 'copy', label: 'Copy', icon: CopyIcon });
     if (props.message.type.toLowerCase() === 'image')
-        items.push({ id: 'download', label: 'Download', icon: '💾' });
+        items.push({ id: 'download', label: 'Download', icon: DownloadIcon });
     if (isMe.value && props.message.type.toLowerCase() === 'text')
-        items.push({ id: 'edit', label: 'Edit', icon: '✏️' });
+        items.push({ id: 'edit', label: 'Edit', icon: EditIcon });
     if (isMe.value)
-        items.push({ id: 'delete', label: 'Delete', icon: '🗑️' });
+        items.push({ id: 'delete', label: 'Delete', icon: DeleteIcon });
 
     return items;
 });

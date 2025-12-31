@@ -45,7 +45,7 @@
 
         <div class="header-right">
             <!-- Add Button & Menu -->
-            <button class="icon-button plus-button" @click.stop="toggleAddMenu" title="Add New">+</button>
+            <button class="icon-button plus-button" @click.stop="toggleAddMenu" title="Add New"><PlusIcon /></button>
             <div v-if="uiStore.showAddMenu" class="dropdown-menu show right">
                 <div class="menu-item" @click="openAddFriend">Add Friend</div>
                 <div class="menu-item" @click="openCreateGroup">Create Group Chat</div>
@@ -58,6 +58,7 @@
 import { ref } from 'vue';
 import { useUserStore, useChatStore, useUIStore } from '@/stores';
 import { uploadAvatar as uploadAvatarApi } from '@/services/api';
+import PlusIcon from './icons/PlusIcon.vue';
 import { wsService } from '@/services/websocket';
 
 const userStore = useUserStore();

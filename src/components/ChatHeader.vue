@@ -33,7 +33,7 @@
             </template>
         </div>
         <button v-if="currentChat && !chatStore.isBroadcastView && !chatStore.isMomentsView" class="chat-settings-btn" @click="chatStore.toggleChatSettings()">
-            ⚙️
+            <SettingsIcon />
         </button>
     </div>
 </template>
@@ -42,6 +42,7 @@
 import { computed } from 'vue';
 import { useChatStore, useUIStore } from '@/stores';
 import { getAvatarUrl } from '@/utils/helpers';
+import SettingsIcon from './icons/SettingsIcon.vue';
 
 const chatStore = useChatStore();
 const uiStore = useUIStore();
@@ -119,6 +120,8 @@ function goBack()
     padding: 5px;
     border-radius: 50%;
     transition: background 0.2s, color 0.2s;
+    width: 30px;
+    height: 30px;
 }
 
 .chat-settings-btn:hover {

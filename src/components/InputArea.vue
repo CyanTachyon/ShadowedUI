@@ -4,7 +4,7 @@
         <div v-if="chatStore.replyingToMessage" class="reply-preview">
             <div class="reply-preview-header">
                 <span class="reply-preview-label">Replying to {{ chatStore.replyingToMessage.senderName }}:</span>
-                <button class="reply-cancel-btn" @click="chatStore.clearReplyingTo()">✕</button>
+                <button class="reply-cancel-btn" @click="chatStore.clearReplyingTo()"><CloseIcon /></button>
             </div>
             <div class="reply-preview-content">{{ decryptedReplyContent ? truncateReplyContent(decryptedReplyContent) : '[Decrypting...]' }}</div>
         </div>
@@ -36,6 +36,7 @@ import { wsService } from '@/services/websocket';
 import { sendFileMessage } from '@/services/api';
 import { encryptMessageString, encryptMessageBytes, decryptMessageString } from '@/utils/crypto';
 import { isMobileDevice, getImageSizeFromArrayBuffer } from '@/utils/helpers';
+import CloseIcon from './icons/CloseIcon.vue';
 
 const chatStore = useChatStore();
 const userStore = useUserStore();

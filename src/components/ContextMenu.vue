@@ -3,7 +3,7 @@
         <div v-if="visible" class="context-menu-overlay" @click="close" @contextmenu.prevent="close">
             <div ref="menuRef" class="context-menu" :style="menuStyle" @click.stop>
                 <div v-for="item in items" :key="item.id" class="context-menu-item" @click="handleItemClick(item)">
-                    <span v-if="item.icon" class="item-icon">{{ item.icon }}</span>
+                    <component v-if="item.icon" :is="item.icon" class="item-icon" />
                     <span class="item-label">{{ item.label }}</span>
                 </div>
             </div>
@@ -12,13 +12,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, nextTick } from 'vue';
+import { ref, computed, watch, nextTick, type Component } from 'vue';
 
 export interface ContextMenuItem
 {
     id: string;
     label: string;
-    icon?: string;
+    icon?: Component;
 }
 
 const props = defineProps<{
@@ -121,7 +121,11 @@ function handleItemClick(item: ContextMenuItem)
 
 .item-icon {
     margin-right: 10px;
-    font-size: 16px;
+    width: 16px;
+    height: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .item-label {

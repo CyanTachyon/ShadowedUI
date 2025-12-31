@@ -3,17 +3,20 @@
         <div class="image-container" :style="{ transform: `scale(${scale}) translate(${imageOffsetX}px, ${imageOffsetY}px)` }">
             <img v-if="imageUrl" :src="imageUrl" class="viewing-image" alt="Zoomed image" @mousedown="startDrag" />
         </div>
-        <button class="close-button" @click="close">✕</button>
+        <button class="close-button" @click="close"><CloseIcon /></button>
         <div class="zoom-controls">
-            <button class="zoom-button" @click.stop="zoomOut">−</button>
+            <button class="zoom-button" @click.stop="zoomOut"><MinusIcon /></button>
             <span class="zoom-level">{{ Math.round(scale * 100) }}%</span>
-            <button class="zoom-button" @click.stop="zoomIn">+</button>
+            <button class="zoom-button" @click.stop="zoomIn"><PlusIcon /></button>
         </div>
     </div>
 </template>
 
 <script setup lang="ts">
 import { ref, watch, onMounted, onUnmounted } from 'vue';
+import CloseIcon from '../icons/CloseIcon.vue';
+import PlusIcon from '../icons/PlusIcon.vue';
+import MinusIcon from '../icons/MinusIcon.vue';
 
 const props = defineProps<{
     visible: boolean;
