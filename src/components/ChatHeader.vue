@@ -10,6 +10,13 @@
                 </svg>
                 <span>Broadcasts</span>
             </template>
+            <template v-else-if="chatStore.isMomentsView">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 8px; min-width: 24px; min-height: 24px; max-width: 24px; max-height: 24px;">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <path d="M12 8v4l3 3"></path>
+                </svg>
+                <span>Moments</span>
+            </template>
             <template v-else-if="currentChat">
                 <template v-if="!isGroup && otherId">
                     <img :src="getAvatarUrl(otherId)" class="chat-avatar" alt="avatar" loading="lazy" />
@@ -25,7 +32,7 @@
                 <span>Select a friend</span>
             </template>
         </div>
-        <button v-if="currentChat && !chatStore.isBroadcastView" class="chat-settings-btn" @click="chatStore.toggleChatSettings()">
+        <button v-if="currentChat && !chatStore.isBroadcastView && !chatStore.isMomentsView" class="chat-settings-btn" @click="chatStore.toggleChatSettings()">
             ⚙️
         </button>
     </div>

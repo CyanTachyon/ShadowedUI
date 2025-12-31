@@ -174,6 +174,14 @@ function handlePopState(event: PopStateEvent)
                 chatStore.restoreBroadcastView();
             }
         }
+        else if (state.chatId === 'moments')
+        {
+            if (!chatStore.isMomentsView || chatStore.viewingUserMomentsId !== null)
+            {
+                // 直接恢复 moments 视图状态，不修改历史
+                chatStore.restoreMomentsView();
+            }
+        }
         else if (state.chatId && state.chatId !== chatStore.currentChatId)
         {
             const chat = chatStore.chats.find(c => c.chatId === state.chatId);

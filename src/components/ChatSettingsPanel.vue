@@ -54,6 +54,29 @@
                 <button class="button do-not-disturb-btn" :class="{ active: chatStore.isDoNotDisturb }" @click="chatStore.setDoNotDisturb(!chatStore.isDoNotDisturb)" style="width: 100%;">
                     {{ chatStore.isDoNotDisturb ? 'Disable' : 'Enable' }} Do Not Disturb
                 </button>
+                
+                <!-- Moment Permission Controls -->
+                <div class="moment-controls">
+                    <div class="moment-control-item">
+                        <span>Allow to view my moments</span>
+                        <button 
+                            class="toggle-btn" 
+                            :class="{ active: momentPermission?.canFriendViewMine }"
+                            @click="toggleMomentPermission"
+                            :disabled="loadingPermission"
+                        >
+                            {{ momentPermission?.canFriendViewMine ? 'Yes' : 'No' }}
+                        </button>
+                    </div>
+                    <button 
+                        class="button view-moments-btn" 
+                        @click="viewFriendMoments"
+                        :disabled="!momentPermission?.canIViewFriends"
+                    >
+                        View Their Moments
+                    </button>
+                </div>
+
                 <button class="button delete-chat-btn" @click="deleteChat">
                     Delete Chat
                 </button>
@@ -66,17 +89,24 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
 import { useChatStore, useUserStore, useUIStore } from '@/stores';
 import { wsService } from '@/services/websocket';
 import { getAvatarUrl, getUserId } from '@/utils/helpers';
-import type { ChatMember } from '@/types';
+import { 
+    encryptSymmetricKey,
+    decryptSymmetricKey,
+    importPublicKey
+} from '@/utils/crypto';
+import type { ChatMember, MomentPermission } from '@/types';
 
 const chatStore = useChatStore();
 const userStore = useUserStore();
 const uiStore = useUIStore();
 
 const newName = ref('');
+const momentPermission = ref<MomentPermission | null>(null);
+const loadingPermission = ref(false);
 
 const details = computed(() => chatStore.currentChatDetails);
 
@@ -99,6 +129,12 @@ const myId = computed(() =>
 });
 
 const isOwner = computed(() => ownerId.value === myId.value);
+
+const otherMemberId = computed(() => {
+    if (!isPrivate.value) return null;
+    const otherMember = members.value.find(m => m.id !== myId.value);
+    return otherMember?.id || null;
+});
 
 const otherMemberSignature = computed(() =>
 {
@@ -169,6 +205,172 @@ function deleteChat()
         false
     );
 }
+
+// Moment permission functions
+function loadMomentPermission() {
+    if (!isPrivate.value || !otherMemberId.value) return;
+    loadingPermission.value = true;
+    wsService.sendPacket('get_moment_permission', {
+        friendId: otherMemberId.value
+    });
+}
+
+async function toggleMomentPermission() {
+    if (!otherMemberId.value || !momentPermission.value) return;
+    
+    const newState = !momentPermission.value.canFriendViewMine;
+    
+    // If disabling, just call toggle_moment_permission to remove member
+    if (!newState) {
+        loadingPermission.value = true;
+        wsService.sendPacket('toggle_moment_permission', {
+            friendId: otherMemberId.value,
+            canView: false
+        });
+        return;
+    }
+    
+    // If enabling, we need to:
+    // 1. Get my moment key
+    // 2. Get friend's public key
+    // 3. Encrypt key with friend's public key
+    // 4. Send get_moment_permission with encryptedKey
+    
+    try {
+        loadingPermission.value = true;
+        
+        // Get my moment key
+        const myMomentKeyResult = await new Promise<{ exists: boolean; key?: string; chatId?: number }>((resolve, reject) => {
+            const handler = (data: any) => {
+                wsService.off('my_moment_key', handler);
+                resolve(data);
+            };
+            wsService.on('my_moment_key', handler);
+            wsService.sendPacket('get_my_moment_key', {});
+            
+            // 10 second timeout
+            setTimeout(() => {
+                wsService.off('my_moment_key', handler);
+                reject(new Error('Timeout getting moment key'));
+            }, 10000);
+        });
+        
+        // Handle case where moment chat doesn't exist yet
+        if (!myMomentKeyResult.exists || !myMomentKeyResult.key) {
+            // Need to create a new moment key
+            const myPublicKey = await userStore.getMyPublicKey();
+            if (!myPublicKey) {
+                chatStore.showToast('Public key not available', 'error');
+                loadingPermission.value = false;
+                return;
+            }
+            
+            // Generate a new symmetric key
+            const key = await window.crypto.subtle.generateKey(
+                { name: 'AES-GCM', length: 256 },
+                true,
+                ['encrypt', 'decrypt']
+            );
+            
+            // Encrypt it with my own public key
+            const encryptedKey = await encryptSymmetricKey(key, myPublicKey);
+            
+            // Post first moment to create the chat
+            wsService.sendPacket('post_moment', {
+                content: '', // Empty content, just to create the chat
+                type: 'TEXT',
+                key: encryptedKey || null
+            });
+            
+            // Wait a bit for the chat to be created, then retry
+            setTimeout(() => toggleMomentPermission(), 1000);
+            return;
+        }
+        
+        // Decrypt my moment key
+        if (!userStore.privateKey) {
+            chatStore.showToast('Private key not available', 'error');
+            loadingPermission.value = false;
+            return;
+        }
+        
+        const decryptedMomentKey = await decryptSymmetricKey(myMomentKeyResult.key, userStore.privateKey);
+        if (!decryptedMomentKey) {
+            chatStore.showToast('Failed to decrypt moment key', 'error');
+            loadingPermission.value = false;
+            return;
+        }
+        
+        // Get friend's public key
+        const friendPublicKey = await new Promise<string | null>((resolve, reject) => {
+            const handler = (data: any) => {
+                wsService.off('public_key_by_username', handler);
+                resolve(data.publicKey || null);
+            };
+            wsService.on('public_key_by_username', handler);
+            const otherMember = members.value.find(m => m.id === otherMemberId.value);
+            if (otherMember) {
+                wsService.sendPacket('get_public_key_by_username', { username: otherMember.username });
+            } else {
+                resolve(null);
+            }
+            
+            // 10 second timeout
+            setTimeout(() => {
+                wsService.off('public_key_by_username', handler);
+                reject(new Error('Timeout getting public key'));
+            }, 10000);
+        });
+        
+        if (!friendPublicKey) {
+            chatStore.showToast('Failed to get friend public key', 'error');
+            loadingPermission.value = false;
+            return;
+        }
+        
+        // Encrypt moment key with friend's public key
+        const encryptedFriendKey = await encryptSymmetricKey(decryptedMomentKey, await importPublicKey(friendPublicKey));
+        
+        // Send get_moment_permission with encryptedKey to add friend as viewer
+        wsService.sendPacket('get_moment_permission', {
+            friendId: otherMemberId.value,
+            encryptedKey: encryptedFriendKey
+        });
+        
+    } catch (e) {
+        console.error('Failed to enable moment permission:', e);
+        chatStore.showToast('Failed to enable moment permission', 'error');
+        loadingPermission.value = false;
+    }
+}
+
+function viewFriendMoments() {
+    if (!otherMemberId.value) return;
+    chatStore.viewUserMoments(otherMemberId.value);
+}
+
+// Watch for details changes to load moment permission
+watch(() => details.value, () => {
+    if (isPrivate.value && otherMemberId.value) {
+        loadMomentPermission();
+    }
+}, { immediate: true });
+
+// Register WebSocket handlers
+onMounted(() => {
+    wsService.on('moment_permission_status', (data: MomentPermission) => {
+        loadingPermission.value = false;
+        if (data.friendId === otherMemberId.value) {
+            momentPermission.value = data;
+        }
+    });
+    wsService.on('moment_permission_updated', (data: { friendId: number; canView: boolean }) => {
+        loadingPermission.value = false;
+        if (data.friendId === otherMemberId.value && momentPermission.value) {
+            momentPermission.value.canFriendViewMine = data.canView;
+        }
+    });
+});
 </script>
 
 <style scoped>
@@ -346,6 +548,53 @@ function deleteChat()
 
 .delete-chat-btn:hover {
     background: #c0392b;
+}
+
+.moment-controls {
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: 1px solid var(--border-color);
+}
+
+.moment-control-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+    font-size: 0.9em;
+}
+
+.toggle-btn {
+    padding: 4px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background: var(--panel-bg);
+    color: var(--text-color);
+    cursor: pointer;
+    font-size: 0.85em;
+    transition: all 0.2s;
+}
+
+.toggle-btn.active {
+    background: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+}
+
+.toggle-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.view-moments-btn {
+    width: 100%;
+    margin-top: 10px;
+    background: var(--primary-color);
+}
+
+.view-moments-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
 }
 
 .signature-section {

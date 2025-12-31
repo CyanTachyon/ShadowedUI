@@ -30,6 +30,10 @@ export const useChatStore = defineStore('chat', () =>
     const broadcastOffset = ref(0);
     const hasMoreBroadcasts = ref(true);
 
+    // Moments state
+    const isMomentsView = ref(false);
+    const viewingUserMomentsId = ref<number | null>(null);
+
     // UI state
     const toasts = ref<Toast[]>([]);
     const pendingChatToOpen = ref<number | null>(null);
@@ -172,6 +176,7 @@ export const useChatStore = defineStore('chat', () =>
         const uiStore = useUIStore();
 
         isBroadcastView.value = false;
+        isMomentsView.value = false; // Clear moments view
         currentChatId.value = chat.chatId;
         isDoNotDisturb.value = chat.doNotDisturb;
         currentChatMessages.value = [];
@@ -281,6 +286,7 @@ export const useChatStore = defineStore('chat', () =>
         const uiStore = useUIStore();
 
         isBroadcastView.value = true;
+        isMomentsView.value = false;
         currentChatId.value = null;
         currentBroadcasts.value = [];
         broadcastOffset.value = 0;
@@ -553,6 +559,21 @@ export const useChatStore = defineStore('chat', () =>
         loadBroadcasts();
     }
 
+    // 恢复 moments 视图（不修改历史，用于 popstate 处理）
+    function restoreMomentsView(): void
+    {
+        const uiStore = useUIStore();
+
+        isMomentsView.value = true;
+        isBroadcastView.value = false;
+        currentChatId.value = null;
+        viewingUserMomentsId.value = null;
+        showSettingsPanel.value = false;
+
+        uiStore.setViewState('chat');
+        // MomentsView 组件自己负责加载数据
+    }
+
     function handleChatDetails(data: ChatDetails): void
     {
         if (data.chat.id === currentChatId.value)
@@ -603,6 +624,58 @@ export const useChatStore = defineStore('chat', () =>
         }
     }
 
+    // Moments methods
+    function openMoments(): void
+    {
+        const uiStore = useUIStore();
+
+        isMomentsView.value = true;
+        isBroadcastView.value = false;
+        currentChatId.value = null;
+        showSettingsPanel.value = false;
+        viewingUserMomentsId.value = null;
+
+        uiStore.setViewState('chat');
+
+        // 检查当前历史状态，决定是 push 还是 replace
+        const currentState = history.state;
+        if (currentState?.view === 'chat' || currentState?.view === 'settings')
+        {
+            // 已经在聊天/设置视图，替换当前状态
+            history.replaceState({ view: 'chat', chatId: 'moments' }, '', '');
+        }
+        else
+        {
+            // 从列表进入 Moments，压入新状态
+            history.pushState({ view: 'chat', chatId: 'moments' }, '', '');
+        }
+    }
+
+    function switchToChats(): void
+    {
+        isMomentsView.value = false;
+        viewingUserMomentsId.value = null;
+    }
+
+    function viewUserMoments(userId: number): void
+    {
+        const uiStore = useUIStore();
+
+        viewingUserMomentsId.value = userId;
+        isMomentsView.value = true;
+        isBroadcastView.value = false;
+        currentChatId.value = null;
+        showSettingsPanel.value = false;
+
+        uiStore.setViewState('chat');
+
+        wsService.sendPacket('get_user_moments', {
+            userId,
+            before: Number.MAX_SAFE_INTEGER,
+            count: 50
+        });
+    }
+
     return {
         // State
         chats,
@@ -615,6 +688,8 @@ export const useChatStore = defineStore('chat', () =>
         currentBroadcasts,
         broadcastOffset,
         hasMoreBroadcasts,
+        isMomentsView,
+        viewingUserMomentsId,
         toasts,
         pendingChatToOpen,
         hasMoreMessages,
@@ -653,13 +728,17 @@ export const useChatStore = defineStore('chat', () =>
         openSettingsPanel,
         restoreChatView,
         restoreBroadcastView,
+        restoreMomentsView,
         handleChatDetails,
         updateChatName,
         kickMember,
         setDoNotDisturb,
         refreshChats,
         setFriends,
-        handleUnreadCount
+        handleUnreadCount,
+        openMoments,
+        switchToChats,
+        viewUserMoments
     };
 });
 

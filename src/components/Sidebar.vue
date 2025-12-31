@@ -1,9 +1,35 @@
 <template>
     <div class="sidebar">
         <SidebarHeader />
-        <BroadcastHeader @click="chatStore.openBroadcasts()" />
         <div class="friend-list scrollable">
             <ChatItem v-for="chat in chatStore.chats" :key="chat.chatId" :chat="chat" :is-active="chatStore.currentChatId === chat.chatId" @select="chatStore.selectChat(chat)" />
+        </div>
+        <div class="tab-bar">
+            <button 
+                class="tab-item" 
+                :class="{ active: chatStore.isBroadcastView }" 
+                @click="chatStore.openBroadcasts()"
+                title="Broadcasts"
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="12" y1="8" x2="12" y2="12"></line>
+                    <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                </svg>
+                <span>Broadcasts</span>
+            </button>
+            <button 
+                class="tab-item" 
+                :class="{ active: chatStore.isMomentsView }" 
+                @click="chatStore.openMoments()"
+                title="Moments"
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <path d="M12 8v4l3 3"></path>
+                </svg>
+                <span>Moments</span>
+            </button>
         </div>
     </div>
 </template>
@@ -11,7 +37,6 @@
 <script setup lang="ts">
 import { useChatStore } from '@/stores';
 import SidebarHeader from './SidebarHeader.vue';
-import BroadcastHeader from './BroadcastHeader.vue';
 import ChatItem from './ChatItem.vue';
 
 const chatStore = useChatStore();
@@ -28,6 +53,49 @@ const chatStore = useChatStore();
 .friend-list {
     flex: 1;
     overflow-y: auto;
+}
+
+.moments-list {
+    flex: 1;
+    overflow-y: auto;
+}
+
+.tab-bar {
+    display: flex;
+    border-top: 1px solid var(--border-color);
+    background: var(--panel-bg);
+}
+
+.tab-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 10px 0;
+    background: none;
+    border: none;
+    color: var(--secondary-color);
+    cursor: pointer;
+    transition: color 0.2s, background-color 0.2s;
+    gap: 4px;
+}
+
+.tab-item:hover {
+    background: var(--hover-bg);
+}
+
+.tab-item.active {
+    color: var(--primary-color);
+}
+
+.tab-item svg {
+    width: 20px;
+    height: 20px;
+}
+
+.tab-item span {
+    font-size: 0.75rem;
 }
 
 @media (max-width: 768px) {

@@ -69,6 +69,24 @@ export interface Friend
     username: string;
 }
 
+export interface Moment
+{
+    messageId: number;
+    content: string;
+    type: 'TEXT' | 'IMAGE';
+    ownerId: number;
+    ownerName: string;
+    time: number;
+    key: string;
+}
+
+export interface MomentPermission
+{
+    friendId: number;
+    canFriendViewMine: boolean;
+    canIViewFriends: boolean;
+}
+
 export type ToastType = 'info' | 'error' | 'success';
 
 export interface Toast

@@ -15,7 +15,7 @@ class WebSocketService
     private socket: WebSocket | null = null;
     private reconnectAttempts = 0;
     private maxReconnectAttempts = 3;
-    private handlers = new Map<string, PacketHandler>();
+    private handlers = new Map<string, Set<PacketHandler>>();
     private packetLock: Promise<void> | null = null;
     private onConnectCallback: (() => void) | null = null;
     private onDisconnectCallback: (() => void) | null = null;
@@ -94,9 +94,14 @@ class WebSocketService
 
         try
         {
-            const handler = this.handlers.get(data.packet);
-            if (handler)
-                await handler(data)
+            const handlers = this.handlers.get(data.packet);
+            if (handlers)
+            {
+                for (const handler of handlers)
+                {
+                    await handler(data);
+                }
+            }
         } 
         finally
         {
@@ -107,7 +112,28 @@ class WebSocketService
 
     on(packet: string, handler: PacketHandler): void
     {
-        this.handlers.set(packet, handler);
+        if (!this.handlers.has(packet))
+        {
+            this.handlers.set(packet, new Set());
+        }
+        this.handlers.get(packet)!.add(handler);
+    }
+
+    off(packet: string, handler?: PacketHandler): void
+    {
+        if (handler) {
+            // Only remove if the specific handler matches
+            const handlers = this.handlers.get(packet);
+            if (handlers) {
+                handlers.delete(handler);
+                if (handlers.size === 0) {
+                    this.handlers.delete(packet);
+                }
+            }
+        } else {
+            // Remove all handlers for this packet
+            this.handlers.delete(packet);
+        }
     }
 
     onConnect(callback: () => void): void
