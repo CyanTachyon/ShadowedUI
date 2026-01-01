@@ -23,7 +23,7 @@
             <p class="hint">Post your first moment or add friends to see theirs!</p>
         </div>
         <div v-else class="moments-list">
-            <div v-for="moment in moments" :key="moment.messageId" class="moment-item">
+            <div v-for="moment in moments" :key="moment.messageId" class="moment-item" @contextmenu.prevent="handleContextMenu($event, moment)">
                 <div class="moment-header">
                     <img :src="getAvatarUrl(moment.ownerId)" class="avatar clickable" alt="avatar" @click="openUserProfile(moment.ownerId)" />
                     <div class="moment-info">
@@ -39,6 +39,34 @@
                         <img v-if="moment.imageUrl" :src="moment.imageUrl" class="moment-image" alt="moment image" />
                         <p v-else class="text-content">Loading image...</p>
                     </template>
+                </div>
+                
+                <!-- Comment section -->
+                <div class="moment-actions">
+                    <button class="comment-toggle-btn" @click="toggleComments(moment.messageId)">
+                        <span v-if="showComments.has(moment.messageId)">Hide comments</span>
+                        <span v-else>Show comments</span>
+                    </button>
+                </div>
+                
+                <!-- Comments list -->
+                <div v-if="showComments.has(moment.messageId)" class="comments-section">
+                    <div v-if="getMomentComments(moment.messageId).length === 0" class="no-comments">
+                        No comments yet
+                    </div>
+                    <div v-else class="comments-list">
+                        <div v-for="comment in getMomentComments(moment.messageId)" :key="comment.id" class="comment-item">
+                            <img :src="getAvatarUrl(comment.senderId)" class="comment-avatar clickable" alt="avatar" @click="openUserProfile(comment.senderId)" />
+                            <div class="comment-content">
+                                <span class="comment-sender clickable" @click="openUserProfile(comment.senderId)">{{ comment.senderName }}</span>
+                                <span class="comment-time">{{ formatTime(comment.time) }}</span>
+                                <p class="comment-text">{{ comment.content }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Comment input -->
+                    <CommentInput :moment="moment" @commentSent="handleCommentSent" />
                 </div>
             </div>
             <button v-if="hasMore" class="load-more-btn" @click="loadMoreMoments">
@@ -62,6 +90,15 @@
                 </div>
             </div>
         </div>
+        
+        <!-- Context Menu -->
+        <ContextMenu :visible="contextMenuVisible" :x="contextMenuX" :y="contextMenuY" :items="contextMenuItems" @close="contextMenuVisible = false" @select="handleMenuSelect" />
+        
+        <!-- Edit Moment Modal -->
+        <EditMomentModal :visible="showEditModal" :moment="selectedMoment" @close="showEditModal = false" />
+        
+        <!-- Delete Moment Modal -->
+        <DeleteMomentModal :visible="showDeleteModal" :moment="selectedMoment" @close="showDeleteModal = false" />
     </div>
 </template>
 
@@ -78,7 +115,13 @@ import
     encryptSymmetricKey,
     encryptMessageString
 } from '@/utils/crypto';
-import type { Moment } from '@/types';
+import type { Moment, MomentComment } from '@/types';
+import EditMomentModal from './modals/EditMomentModal.vue';
+import DeleteMomentModal from './modals/DeleteMomentModal.vue';
+import CommentInput from './CommentInput.vue';
+import ContextMenu, { type ContextMenuItem } from './ContextMenu.vue';
+import EditIcon from './icons/EditIcon.vue';
+import DeleteIcon from './icons/DeleteIcon.vue';
 
 interface DecryptedMoment extends Moment
 {
@@ -98,6 +141,20 @@ const newMomentText = ref('');
 const currentOffset = ref(0);
 const currentViewingUserName = ref('');
 
+// Context menu state
+const contextMenuVisible = ref(false);
+const contextMenuX = ref(0);
+const contextMenuY = ref(0);
+const selectedMoment = ref<DecryptedMoment | null>(null);
+
+// Modals state
+const showEditModal = ref(false);
+const showDeleteModal = ref(false);
+
+// Comments state
+const showComments = ref<Set<number>>(new Set());
+const comments = ref<Map<number, MomentComment[]>>(new Map());
+
 // View mode: null = viewing all moments, number = viewing specific user's moments
 const viewingUserId = computed(() => chatStore.viewingUserMomentsId);
 const viewingUserName = computed(() =>
@@ -110,6 +167,14 @@ const viewingUserName = computed(() =>
     }
     const user = chatStore.friends.find(f => f.id === viewingUserId.value);
     return user?.username || `User ${viewingUserId.value}`;
+});
+
+// Check if current user is the moment owner
+const isMomentOwner = computed(() =>
+{
+    if (!userStore.currentUser || !selectedMoment.value) return false;
+    const currentUserId = getUserId(userStore.currentUser.id);
+    return selectedMoment.value.ownerId === currentUserId;
 });
 
 // Cache for decrypted keys
@@ -131,6 +196,21 @@ async function getDecryptedKey(encryptedKey: string): Promise<CryptoKey | null>
     }
     return key;
 }
+
+// Context menu items
+const contextMenuItems = computed<ContextMenuItem[]>(() =>
+{
+    const items: ContextMenuItem[] = [];
+    if (isMomentOwner.value && selectedMoment.value?.type === 'TEXT')
+    {
+        items.push({ id: 'edit', label: 'Edit', icon: EditIcon });
+    }
+    if (isMomentOwner.value)
+    {
+        items.push({ id: 'delete', label: 'Delete', icon: DeleteIcon });
+    }
+    return items;
+});
 
 async function decryptMoment(moment: Moment): Promise<DecryptedMoment>
 {
@@ -358,12 +438,203 @@ function openUserProfile(ownerId: number)
     uiStore.navigateToProfile(ownerId);
 }
 
+// Context menu handlers
+function handleContextMenu(event: MouseEvent, moment: DecryptedMoment)
+{
+    selectedMoment.value = moment;
+    contextMenuX.value = event.clientX;
+    contextMenuY.value = event.clientY;
+    // Only show context menu if there are items
+    contextMenuVisible.value = contextMenuItems.value.length > 0;
+}
+
+function handleMenuSelect(item: ContextMenuItem)
+{
+    switch (item.id)
+    {
+        case 'edit':
+            showEditModal.value = true;
+            break;
+        case 'delete':
+            showDeleteModal.value = true;
+            break;
+    }
+}
+
+// Comment handlers
+function toggleComments(momentId: number)
+{
+    if (showComments.value.has(momentId))
+    {
+        showComments.value.delete(momentId);
+    }
+    else
+    {
+        showComments.value.add(momentId);
+        // Load comments for this moment
+        loadMomentComments(momentId);
+    }
+}
+
+async function loadMomentComments(momentId: number)
+{
+    try
+    {
+        wsService.sendPacket('get_moment_comments', {
+            momentMessageId: momentId
+        });
+    }
+    catch (e)
+    {
+        console.error('Failed to load comments:', e);
+        chatStore.showToast('Failed to load comments', 'error');
+    }
+}
+
+function getMomentComments(momentId: number): MomentComment[]
+{
+    return comments.value.get(momentId) || [];
+}
+
+// Edit moment handler
+function handleMomentEdited(data: { messageId: number; content: string; })
+{
+    const moment = moments.value.find(m => m.messageId === data.messageId);
+    if (moment)
+    {
+        moment.content = data.content;
+        moment.decryptedContent = '[Updated]';
+        // Re-decrypt
+        decryptMoment(moment).then(decrypted =>
+        {
+            moment.decryptedContent = decrypted.decryptedContent;
+        });
+    }
+}
+
+// Delete moment handler
+function handleMomentDeleted(data: { messageId: number; })
+{
+    moments.value = moments.value.filter(m => m.messageId !== data.messageId);
+    comments.value.delete(data.messageId);
+    showComments.value.delete(data.messageId);
+    chatStore.showToast('Moment deleted', 'success');
+}
+
+// Comment added handler
+async function handleCommentAdded(data: { comment: any; })
+{
+    // Find which moment this comment belongs to
+    // Get the replyTo field to find the moment ID
+    // replyTo is a ReplyInfo object with messageId, content, senderId, senderName, type
+    const momentId = data.comment.replyTo?.messageId;
+    if (momentId)
+    {
+        // Find the moment to get its key for decryption
+        const moment = moments.value.find(m => m.messageId === momentId);
+        if (!moment) return;
+        
+        // Get the decrypted key for this moment
+        const key = await getDecryptedKey(moment.key);
+        if (!key) return;
+        
+        // Decrypt the comment
+        let decryptedContent = '[Decryption failed]';
+        try
+        {
+            if (data.comment.type === 'TEXT')
+            {
+                decryptedContent = await decryptMessageString(data.comment.content, key);
+            }
+            else
+            {
+                decryptedContent = '[Image]';
+            }
+        }
+        catch (e)
+        {
+            console.error('Failed to decrypt comment:', e);
+        }
+        
+        const comment: MomentComment = {
+            id: data.comment.id,
+            content: decryptedContent,
+            senderId: data.comment.senderId,
+            senderName: data.comment.senderName,
+            time: data.comment.time,
+            type: data.comment.type
+        };
+        
+        // Add comment to the moment's comments
+        const existingComments = comments.value.get(momentId) || [];
+        comments.value.set(momentId, [...existingComments, comment]);
+        
+        chatStore.showToast('New comment added', 'success');
+    }
+}
+
+// Moment comments list handler
+async function handleMomentComments(data: { momentMessageId: number; comments: any[]; })
+{
+    const momentId = data.momentMessageId;
+    
+    // Find the moment to get its key for decryption
+    const moment = moments.value.find(m => m.messageId === momentId);
+    if (!moment) return;
+    
+    // Get the decrypted key for this moment
+    const key = await getDecryptedKey(moment.key);
+    if (!key) return;
+    
+    // Decrypt each comment
+    const commentsList = await Promise.all(data.comments.map(async (c: any) => {
+        let decryptedContent = '[Decryption failed]';
+        try
+        {
+            if (c.type === 'TEXT')
+            {
+                decryptedContent = await decryptMessageString(c.content, key);
+            }
+            else
+            {
+                decryptedContent = '[Image]';
+            }
+        }
+        catch (e)
+        {
+            console.error('Failed to decrypt comment:', e);
+        }
+        
+        return {
+            id: c.id,
+            content: decryptedContent,
+            senderId: c.senderId,
+            senderName: c.senderName,
+            time: c.time,
+            type: c.type
+        };
+    }));
+    
+    comments.value.set(momentId, commentsList);
+}
+
+function handleCommentSent()
+{
+    // Comment was sent successfully
+    // The comment will be received via WebSocket and added to comments list
+    // No need to refresh moments
+}
+
 // Register WebSocket handlers
 onMounted(() =>
 {
     wsService.on('moments_list', handleMomentsList);
     wsService.on('user_moments_list', handleUserMomentsList);
     wsService.on('my_moment_key', handleMomentKeyResponse);
+    wsService.on('moment_edited', handleMomentEdited);
+    wsService.on('moment_deleted', handleMomentDeleted);
+    wsService.on('comment_added', handleCommentAdded);
+    wsService.on('moment_comments', handleMomentComments);
 
     if (chatStore.isMomentsView)
     {
@@ -640,5 +911,88 @@ watch(() => chatStore.isMomentsView, (newVal) =>
 .post-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+}
+
+/* Comment styles */
+.moment-actions {
+    padding-left: 50px;
+    margin-top: 10px;
+}
+
+.comment-toggle-btn {
+    background: none;
+    border: none;
+    color: var(--primary-color);
+    cursor: pointer;
+    font-size: 0.85rem;
+    padding: 4px 8px;
+    transition: background 0.2s;
+}
+
+.comment-toggle-btn:hover {
+    background: var(--hover-bg);
+    border-radius: 4px;
+}
+
+.comments-section {
+    padding-left: 50px;
+    margin-top: 10px;
+    border-top: 1px solid var(--border-color);
+    padding-top: 10px;
+}
+
+.no-comments {
+    color: var(--secondary-color);
+    font-size: 0.85rem;
+    padding: 8px 0;
+    text-align: center;
+}
+
+.comments-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.comment-item {
+    display: flex;
+    gap: 8px;
+    padding: 8px;
+    background: var(--hover-bg);
+    border-radius: 6px;
+}
+
+.comment-avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+}
+
+.comment-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.comment-sender {
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: var(--primary-color);
+}
+
+.comment-time {
+    font-size: 0.75rem;
+    color: var(--secondary-color);
+}
+
+.comment-text {
+    margin: 0;
+    font-size: 0.9rem;
+    word-break: break-word;
+    white-space: pre-wrap;
 }
 </style>

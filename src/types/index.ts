@@ -90,6 +90,18 @@ export interface Moment
     ownerName: string;
     time: number;
     key: string;
+    comments?: MomentComment[];
+    commentCount?: number;
+}
+
+export interface MomentComment
+{
+    id: number;
+    content: string;
+    senderId: number;
+    senderName: string;
+    time: number;
+    type: 'TEXT' | 'IMAGE';
 }
 
 export interface MomentPermission
