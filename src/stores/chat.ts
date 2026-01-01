@@ -673,7 +673,7 @@ export const useChatStore = defineStore('chat', () =>
 
         wsService.sendPacket('get_user_moments', {
             userId,
-            before: Number.MAX_SAFE_INTEGER,
+            before: 0,
             count: 50
         });
     }

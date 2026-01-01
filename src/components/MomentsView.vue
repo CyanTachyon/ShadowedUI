@@ -1,12 +1,19 @@
 <template>
     <div class="moments-view">
         <div class="moments-header">
-            <h3>Moments</h3>
-            <button class="post-moment-btn" @click="showPostModal = true">
+            <h3>{{ viewingUserId ? `${viewingUserName}'s Moments` : 'Moments' }}</h3>
+            <button v-if="!viewingUserId" class="post-moment-btn" @click="showPostModal = true">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <line x1="12" y1="5" x2="12" y2="19"></line>
                     <line x1="5" y1="12" x2="19" y2="12"></line>
                 </svg>
+            </button>
+            <button v-else class="back-btn" @click="goBackToAllMoments">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="19" y1="12" x2="5" y2="12"></line>
+                    <polyline points="12 19 5 12 12 5"></polyline>
+                </svg>
+                <span>Back</span>
             </button>
         </div>
 
@@ -18,9 +25,9 @@
         <div v-else class="moments-list">
             <div v-for="moment in moments" :key="moment.messageId" class="moment-item">
                 <div class="moment-header">
-                    <img :src="getAvatarUrl(moment.ownerId)" class="avatar" alt="avatar" />
+                    <img :src="getAvatarUrl(moment.ownerId)" class="avatar clickable" alt="avatar" @click="openUserProfile(moment.ownerId)" />
                     <div class="moment-info">
-                        <span class="owner-name">{{ moment.ownerName }}</span>
+                        <span class="owner-name clickable" @click="openUserProfile(moment.ownerId)">{{ moment.ownerName }}</span>
                         <span class="moment-time">{{ formatTime(moment.time) }}</span>
                     </div>
                 </div>
@@ -59,18 +66,18 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue';
-import { useChatStore, useUserStore } from '@/stores';
+import { ref, onMounted, watch, computed } from 'vue';
+import { useChatStore, useUserStore, useUIStore } from '@/stores';
 import { wsService } from '@/services/websocket';
-import { getAvatarUrl } from '@/utils/helpers';
+import { getAvatarUrl, getUserId } from '@/utils/helpers';
 import
-    {
-        decryptSymmetricKey,
-        decryptMessageString,
-        generateSymmetricKey,
-        encryptSymmetricKey,
-        encryptMessageString
-    } from '@/utils/crypto';
+{
+    decryptSymmetricKey,
+    decryptMessageString,
+    generateSymmetricKey,
+    encryptSymmetricKey,
+    encryptMessageString
+} from '@/utils/crypto';
 import type { Moment } from '@/types';
 
 interface DecryptedMoment extends Moment
@@ -81,6 +88,7 @@ interface DecryptedMoment extends Moment
 
 const chatStore = useChatStore();
 const userStore = useUserStore();
+const uiStore = useUIStore();
 
 const moments = ref<DecryptedMoment[]>([]);
 const loading = ref(false);
@@ -88,6 +96,21 @@ const hasMore = ref(true);
 const showPostModal = ref(false);
 const newMomentText = ref('');
 const currentOffset = ref(0);
+const currentViewingUserName = ref('');
+
+// View mode: null = viewing all moments, number = viewing specific user's moments
+const viewingUserId = computed(() => chatStore.viewingUserMomentsId);
+const viewingUserName = computed(() =>
+{
+    if (!viewingUserId.value) return '';
+    // Use the username from backend response first, fallback to friends list
+    if (currentViewingUserName.value)
+    {
+        return currentViewingUserName.value;
+    }
+    const user = chatStore.friends.find(f => f.id === viewingUserId.value);
+    return user?.username || `User ${viewingUserId.value}`;
+});
 
 // Cache for decrypted keys
 const keyCache = new Map<string, CryptoKey>();
@@ -129,7 +152,7 @@ async function decryptMoment(moment: Moment): Promise<DecryptedMoment>
             result.decryptedContent = '[Image]';
             // You might need to fetch and decrypt the image data
         }
-    } 
+    }
     catch (e)
     {
         console.error('Failed to decrypt moment:', e);
@@ -161,20 +184,49 @@ async function loadMoments()
 {
     loading.value = true;
     currentOffset.value = 0;
-    wsService.sendPacket('get_moments', {
-        offset: 0,
-        count: 20
-    });
+
+    if (viewingUserId.value)
+    {
+        // Load specific user's moments
+        // Backend expects offset (not before as message ID or timestamp)
+        wsService.sendPacket('get_user_moments', {
+            userId: viewingUserId.value,
+            before: 0,
+            count: 20
+        });
+    }
+    else
+    {
+        // Load all moments
+        wsService.sendPacket('get_moments', {
+            offset: 0,
+            count: 20
+        });
+    }
 }
 
 async function loadMoreMoments()
 {
     if (moments.value.length === 0) return;
 
-    wsService.sendPacket('get_moments', {
-        offset: currentOffset.value,
-        count: 20
-    });
+    if (viewingUserId.value)
+    {
+        // Load more specific user's moments
+        // Backend expects offset (not message ID)
+        wsService.sendPacket('get_user_moments', {
+            userId: viewingUserId.value,
+            before: currentOffset.value,
+            count: 20
+        });
+    }
+    else
+    {
+        // Load more all moments
+        wsService.sendPacket('get_moments', {
+            offset: currentOffset.value,
+            count: 20
+        });
+    }
 }
 
 async function postMoment()
@@ -185,7 +237,7 @@ async function postMoment()
     {
         // Get or create moment key
         wsService.sendPacket('get_my_moment_key', {});
-    } 
+    }
     catch (e)
     {
         console.error('Failed to post moment:', e);
@@ -213,7 +265,7 @@ async function handleMomentKeyResponse(data: { exists: boolean; key?: string; ch
                 return;
             }
             encryptedKey = await encryptSymmetricKey(key, myPublicKey);
-        } 
+        }
         else
         {
             // Decrypt existing key
@@ -240,7 +292,7 @@ async function handleMomentKeyResponse(data: { exists: boolean; key?: string; ch
 
         // Refresh moments
         setTimeout(() => loadMoments(), 500);
-    } 
+    }
     catch (e)
     {
         console.error('Failed to post moment:', e);
@@ -266,10 +318,51 @@ async function handleMomentsList(data: { moments: Moment[]; })
     currentOffset.value = moments.value.length;
 }
 
+async function handleUserMomentsList(data: { userId: number; username: string; moments: Moment[]; })
+{
+    loading.value = false;
+    hasMore.value = data.moments.length >= 20;
+
+    // Store the username from backend response
+    if (data.username)
+    {
+        currentViewingUserName.value = data.username;
+    }
+
+    // Decrypt all moments
+    const decrypted = await Promise.all(data.moments.map(decryptMoment));
+
+    // When viewing specific user, just add all moments (they're already sorted by time)
+    const existingIds = new Set(moments.value.map(m => m.messageId));
+    const newMoments = decrypted.filter(m => !existingIds.has(m.messageId));
+
+    moments.value = [...moments.value, ...newMoments].sort((a, b) => b.time - a.time);
+
+    // Update offset for next load
+    currentOffset.value = moments.value.length;
+}
+
+function goBackToAllMoments()
+{
+    chatStore.viewingUserMomentsId = null;
+    currentViewingUserName.value = '';
+    moments.value = [];
+    loadMoments();
+}
+
+function openUserProfile(ownerId: number)
+{
+    if (!userStore.currentUser) return;
+    const currentUserId = getUserId(userStore.currentUser.id);
+    if (ownerId === currentUserId) return;
+    uiStore.navigateToProfile(ownerId);
+}
+
 // Register WebSocket handlers
 onMounted(() =>
 {
     wsService.on('moments_list', handleMomentsList);
+    wsService.on('user_moments_list', handleUserMomentsList);
     wsService.on('my_moment_key', handleMomentKeyResponse);
 
     if (chatStore.isMomentsView)
@@ -284,6 +377,10 @@ watch(() => chatStore.isMomentsView, (newVal) =>
     if (newVal)
     {
         moments.value = [];
+        if (!viewingUserId.value)
+        {
+            currentViewingUserName.value = '';
+        }
         loadMoments();
     }
 });
@@ -328,6 +425,29 @@ watch(() => chatStore.isMomentsView, (newVal) =>
     opacity: 0.8;
 }
 
+.back-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: none;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    color: var(--text-color);
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: background 0.2s;
+}
+
+.back-btn:hover {
+    background: var(--hover-bg);
+}
+
+.back-btn svg {
+    width: 18px;
+    height: 18px;
+}
+
 .loading,
 .empty {
     display: flex;
@@ -369,6 +489,15 @@ watch(() => chatStore.isMomentsView, (newVal) =>
     object-fit: cover;
 }
 
+.avatar.clickable {
+    cursor: pointer;
+    transition: opacity 0.2s;
+}
+
+.avatar.clickable:hover {
+    opacity: 0.8;
+}
+
 .moment-info {
     display: flex;
     flex-direction: column;
@@ -377,6 +506,15 @@ watch(() => chatStore.isMomentsView, (newVal) =>
 .owner-name {
     font-weight: 600;
     font-size: 0.95rem;
+}
+
+.owner-name.clickable {
+    cursor: pointer;
+    transition: color 0.2s;
+}
+
+.owner-name.clickable:hover {
+    color: var(--primary-color);
 }
 
 .moment-time {

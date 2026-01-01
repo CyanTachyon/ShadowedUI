@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 
-export type ViewState = 'list' | 'chat' | 'settings';
+export type ViewState = 'list' | 'chat' | 'settings' | 'profile' | 'mine';
 
 export const useUIStore = defineStore('ui', () =>
 {
@@ -18,14 +18,17 @@ export const useUIStore = defineStore('ui', () =>
     const showResetPasswordModal = ref(false);
     const showKickMemberModal = ref(false);
     const showDeleteChatModal = ref(false);
-    const showUserMenu = ref(false);
     const showAddMenu = ref(false);
+    const showUserProfileModal = ref(false);
 
     // Kick member modal state
     const kickMemberTarget = ref<{ chatId: number; chatName: string; userId: number; username: string; } | null>(null);
     
     // Delete chat modal state
     const deleteChatTarget = ref<{ chatId: number; userId: number; name: string; isGroup: boolean } | null>(null);
+
+    // Profile view state
+    const profileUserId = ref<number | null>(null);
 
     function toggleTheme(): void
     {
@@ -43,27 +46,16 @@ export const useUIStore = defineStore('ui', () =>
     {
         viewState.value = state;
 
-        if (state === 'chat')
+        if (state === 'chat' || state === 'settings' || state === 'profile' || state === 'mine')
         {
             document.body.classList.add('view-chat');
             document.body.classList.remove('view-settings');
-        }
-        else if (state === 'settings')
-        {
-            document.body.classList.add('view-chat');
-            document.body.classList.add('view-settings');
         }
         else
         {
             document.body.classList.remove('view-chat');
             document.body.classList.remove('view-settings');
         }
-    }
-
-    function closeAllMenus(): void
-    {
-        showUserMenu.value = false;
-        showAddMenu.value = false;
     }
 
     function openKickMemberModal(chatId: number, chatName: string, userId: number, username: string): void
@@ -90,6 +82,12 @@ export const useUIStore = defineStore('ui', () =>
         deleteChatTarget.value = null;
     }
 
+    function navigateToProfile(userId: number): void
+    {
+        profileUserId.value = userId;
+        setViewState('profile');
+    }
+
     function setChatBackground(imageData: string | null): void
     {
         chatBackground.value = imageData;
@@ -111,18 +109,19 @@ export const useUIStore = defineStore('ui', () =>
         showResetPasswordModal,
         showKickMemberModal,
         showDeleteChatModal,
-        showUserMenu,
         showAddMenu,
+        showUserProfileModal,
         kickMemberTarget,
         deleteChatTarget,
+        profileUserId,
         toggleTheme,
         initTheme,
         setViewState,
-        closeAllMenus,
         openKickMemberModal,
         closeKickMemberModal,
         openDeleteChatModal,
         closeDeleteChatModal,
+        navigateToProfile,
         chatBackground,
         setChatBackground
     };

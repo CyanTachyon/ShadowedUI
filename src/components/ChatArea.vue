@@ -2,17 +2,20 @@
     <div class="chat-area">
         <ChatHeader />
         <div class="chat-content" :style="chatContentStyle">
+            <!-- Show Mine Settings Panel -->
+            <MineSettingsPanel v-if="uiStore.viewState === 'mine'" />
+
             <!-- Show Moments View when in moments mode -->
-            <MomentsView v-if="chatStore.isMomentsView" />
-            
+            <MomentsView v-else-if="chatStore.isMomentsView" />
+
             <!-- Show regular chat messages otherwise -->
             <MessagesContainer v-else />
-            
+
             <!-- Show chat settings panel in chat mode -->
             <ChatSettingsPanel v-if="!chatStore.isMomentsView && chatStore.showSettingsPanel" />
         </div>
         <!-- Input area only in chat mode -->
-        <InputArea v-if="!chatStore.isMomentsView" />
+        <InputArea v-if="!chatStore.isMomentsView && uiStore.viewState !== 'mine'" />
     </div>
 </template>
 
@@ -22,6 +25,7 @@ import { useChatStore, useUIStore } from '@/stores';
 import ChatHeader from './ChatHeader.vue';
 import MessagesContainer from './MessagesContainer.vue';
 import ChatSettingsPanel from './ChatSettingsPanel.vue';
+import MineSettingsPanel from './MineSettingsPanel.vue';
 import InputArea from './InputArea.vue';
 import MomentsView from './MomentsView.vue';
 

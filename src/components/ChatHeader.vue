@@ -2,7 +2,14 @@
     <div class="chat-header">
         <button class="icon-button mobile-only" @click="goBack">←</button>
         <div class="chat-title">
-            <template v-if="chatStore.isBroadcastView">
+            <template v-if="uiStore.viewState === 'mine'">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 8px; min-width: 24px; min-height: 24px; max-width: 24px; max-height: 24px;">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="12" cy="7" r="4"></circle>
+                </svg>
+                <span>Mine</span>
+            </template>
+            <template v-else-if="chatStore.isBroadcastView">
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 8px; min-width: 24px; min-height: 24px; max-width: 24px; max-height: 24px;">
                     <circle cx="12" cy="12" r="10"></circle>
                     <line x1="12" y1="8" x2="12" y2="12"></line>
@@ -32,7 +39,7 @@
                 <span>Select a friend</span>
             </template>
         </div>
-        <button v-if="currentChat && !chatStore.isBroadcastView && !chatStore.isMomentsView" class="chat-settings-btn" @click="chatStore.toggleChatSettings()">
+        <button v-if="currentChat && !chatStore.isBroadcastView && !chatStore.isMomentsView && uiStore.viewState !== 'mine'" class="chat-settings-btn" @click="chatStore.toggleChatSettings()">
             <SettingsIcon />
         </button>
     </div>

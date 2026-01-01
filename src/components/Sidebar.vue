@@ -5,9 +5,9 @@
             <ChatItem v-for="chat in chatStore.chats" :key="chat.chatId" :chat="chat" :is-active="chatStore.currentChatId === chat.chatId" @select="chatStore.selectChat(chat)" />
         </div>
         <div class="tab-bar">
-            <button 
-                class="tab-item" 
-                :class="{ active: chatStore.isBroadcastView }" 
+            <button
+                class="tab-item"
+                :class="{ active: chatStore.isBroadcastView }"
                 @click="chatStore.openBroadcasts()"
                 title="Broadcasts"
             >
@@ -18,9 +18,9 @@
                 </svg>
                 <span>Broadcasts</span>
             </button>
-            <button 
-                class="tab-item" 
-                :class="{ active: chatStore.isMomentsView }" 
+            <button
+                class="tab-item"
+                :class="{ active: chatStore.isMomentsView }"
                 @click="chatStore.openMoments()"
                 title="Moments"
             >
@@ -30,16 +30,73 @@
                 </svg>
                 <span>Moments</span>
             </button>
+            <button
+                class="tab-item"
+                :class="{ active: uiStore.viewState === 'mine' }"
+                @click="openMineSettings()"
+                title="Mine"
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="12" cy="7" r="4"></circle>
+                </svg>
+                <span>Mine</span>
+            </button>
         </div>
     </div>
 </template>
 
 <script setup lang="ts">
-import { useChatStore } from '@/stores';
+import { useChatStore, useUIStore } from '@/stores';
 import SidebarHeader from './SidebarHeader.vue';
 import ChatItem from './ChatItem.vue';
 
 const chatStore = useChatStore();
+const uiStore = useUIStore();
+
+function openMineSettings() {
+    const uiStore = useUIStore();
+    const currentState = history.state;
+
+    uiStore.setViewState('mine');
+
+    // 如果已经在 mine 视图，替换当前状态
+    if (currentState?.view === 'mine')
+    {
+        history.replaceState({ view: 'mine' }, '', '');
+    }
+    else
+    {
+        // 从其他视图（包括 chat/settings/list）进入 Mine，压入新状态
+        // 保存之前的状态信息，返回时能正确恢复
+        const mineState: any = { view: 'mine' };
+
+        // 保存之前视图的状态信息
+        if (currentState?.view)
+        {
+            mineState.previousView = currentState.view;
+            mineState.previousChatId = currentState.chatId || null;
+        }
+        // 如果当前历史状态为空（首次进入），从 chatStore 获取当前状态
+        else if (chatStore.currentChatId)
+        {
+            mineState.previousView = 'chat';
+            mineState.previousChatId = chatStore.currentChatId;
+        }
+        else if (chatStore.isBroadcastView)
+        {
+            mineState.previousView = 'chat';
+            mineState.previousChatId = 'broadcasts';
+        }
+        else if (chatStore.isMomentsView)
+        {
+            mineState.previousView = 'chat';
+            mineState.previousChatId = 'moments';
+        }
+
+        history.pushState(mineState, '', '');
+    }
+}
 </script>
 
 <style scoped>

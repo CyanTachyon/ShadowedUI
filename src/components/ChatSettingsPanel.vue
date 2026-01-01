@@ -2,7 +2,7 @@
     <div id="chat-settings-panel">
         <div class="settings-header">
             <span>Chat Info</span>
-            <button class="close-btn" @click="chatStore.toggleChatSettings()">×</button>
+            <button class="close-btn" @click="chatStore.toggleChatSettings()"><CloseIcon /></button>
         </div>
         <div class="settings-content" v-if="members.length">
             <!-- Chat Name Section (Group only) -->
@@ -32,8 +32,8 @@
 
                 <div class="member-list">
                     <div v-for="member in members.filter(m => m.id !== myId || !isPrivate)" :key="member.id" class="member-item">
-                        <img :src="getAvatarUrl(member.id)" class="member-avatar" alt="avatar" @click="startPrivateChat(member.username)" />
-                        <span class="member-name" @click="startPrivateChat(member.username)">
+                        <img :src="getAvatarUrl(member.id)" class="member-avatar" alt="avatar" @click="openUserProfile(member.id)" />
+                        <span class="member-name" @click="openUserProfile(member.id)">
                             {{ member.username }}
                             <span v-if="member.id === ownerId" class="owner-badge">(Owner)</span>
                             <span v-if="member.id === myId" class="me-badge">(Me)</span>
@@ -99,6 +99,7 @@ import {
     importPublicKey
 } from '@/utils/crypto';
 import type { ChatMember, MomentPermission } from '@/types';
+import CloseIcon from './icons/CloseIcon.vue';
 
 const chatStore = useChatStore();
 const userStore = useUserStore();
@@ -174,10 +175,10 @@ function showInviteModal()
     wsService.send('get_friends');
 }
 
-function startPrivateChat(username: string)
+function openUserProfile(userId: number)
 {
-    if (username === userStore.currentUser?.username) return;
-    chatStore.addFriend(username);
+    if (userId === myId.value) return;
+    uiStore.navigateToProfile(userId);
 }
 
 function kickMember(member: ChatMember)
@@ -410,6 +411,11 @@ onMounted(() => {
     border-radius: 4px;
     cursor: pointer;
     font-size: 1.2em;
+    width: 35px;
+    height: 35px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
 }
 
 .settings-content {

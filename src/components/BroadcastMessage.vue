@@ -14,7 +14,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import type { Broadcast } from '@/types';
-import { useUserStore, useChatStore } from '@/stores';
+import { useUserStore, useUIStore } from '@/stores';
 import { getAvatarUrl, formatDate, getUserId } from '@/utils/helpers';
 
 const props = defineProps<{
@@ -22,7 +22,7 @@ const props = defineProps<{
 }>();
 
 const userStore = useUserStore();
-const chatStore = useChatStore();
+const uiStore = useUIStore();
 
 const isMyBroadcast = computed(() =>
 {
@@ -69,9 +69,9 @@ const isClickable = computed(() =>
 
 function handleSenderClick()
 {
-    if (isClickable.value && props.broadcast.senderName)
+    if (isClickable.value && props.broadcast.senderId)
     {
-        chatStore.addFriend(props.broadcast.senderName);
+        uiStore.navigateToProfile(props.broadcast.senderId);
     }
 }
 </script>
@@ -124,6 +124,7 @@ function handleSenderClick()
     font-weight: 600;
     margin: auto 0;
     font-size: 0.9em;
+    cursor: pointer;
 }
 
 .broadcast-sender.system {

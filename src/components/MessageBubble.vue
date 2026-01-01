@@ -9,8 +9,8 @@
     >
         <!-- Sender info for group chats -->
         <template v-if="showSender">
-            <div class="message-sender">{{ message.senderName || `User ${message.senderId}` }}</div>
-            <img :src="getAvatarUrl(message.senderId)" class="sender-avatar" alt="avatar" loading="lazy" />
+            <div class="message-sender" @click="openUserProfile">{{ message.senderName || `User ${message.senderId}` }}</div>
+            <img :src="getAvatarUrl(message.senderId)" class="sender-avatar" alt="avatar" loading="lazy" @click="openUserProfile" />
         </template>
 
         <!-- Message content -->
@@ -76,7 +76,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue';
 import type { Message } from '@/types';
-import { useChatStore, useUserStore } from '@/stores';
+import { useChatStore, useUserStore, useUIStore } from '@/stores';
 import { decryptMessageString, decryptMessageBytes } from '@/utils/crypto';
 import { getAvatarUrl, formatDate, getUserId } from '@/utils/helpers';
 import { fetchMessageFile } from '@/services/api';
@@ -88,12 +88,14 @@ import EditIcon from './icons/EditIcon.vue';
 import DeleteIcon from './icons/DeleteIcon.vue';
 import CopyIcon from './icons/CopyIcon.vue';
 import DownloadIcon from './icons/DownloadIcon.vue';
+
 const props = defineProps<{
     message: Message;
 }>();
 
 const chatStore = useChatStore();
 const userStore = useUserStore();
+const uiStore = useUIStore();
 
 const decryptedContent = ref<string>('[Decrypting...]');
 const decryptedReplyContent = ref<string>('');
@@ -254,6 +256,12 @@ async function copyMessage()
         console.error('Failed to copy message', e);
         chatStore.showToast('Failed to copy', 'error');
     }
+}
+
+function openUserProfile()
+{
+    if (isMe.value) return;
+    uiStore.navigateToProfile(props.message.senderId);
 }
 
 function deleteMessage()
@@ -509,6 +517,7 @@ async function isReplyContentImage(): Promise<boolean>
     color: var(--primary-color);
     margin-bottom: 2px;
     opacity: 0.9;
+    cursor: pointer;
 }
 
 .sender-avatar {
@@ -519,6 +528,7 @@ async function isReplyContentImage(): Promise<boolean>
     height: 32px;
     border-radius: 50%;
     object-fit: cover;
+    cursor: pointer;
 }
 
 .content {

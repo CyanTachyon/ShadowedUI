@@ -6,10 +6,13 @@
         <AuthOverlay v-if="!userStore.isAuthenticated" />
 
         <!-- Chat Interface -->
-        <template v-else>
+        <template v-else-if="uiStore.viewState !== 'profile'">
             <Sidebar />
             <ChatArea />
         </template>
+
+        <!-- Profile Page -->
+        <UserProfilePage v-else-if="uiStore.viewState === 'profile'" />
 
         <!-- Modals -->
         <AddFriendModal />
@@ -29,6 +32,7 @@ import ToastContainer from '@/components/ToastContainer.vue';
 import AuthOverlay from '@/components/AuthOverlay.vue';
 import Sidebar from '@/components/Sidebar.vue';
 import ChatArea from '@/components/ChatArea.vue';
+import UserProfilePage from '@/components/UserProfilePage.vue';
 import AddFriendModal from '@/components/modals/AddFriendModal.vue';
 import CreateGroupModal from '@/components/modals/CreateGroupModal.vue';
 import ResetPasswordModal from '@/components/modals/ResetPasswordModal.vue';
@@ -42,10 +46,6 @@ const uiStore = useUIStore();
 function handleGlobalClick(event: MouseEvent)
 {
     const target = event.target as HTMLElement;
-    if (!target.closest('.avatar-container') && !target.closest('#user-menu'))
-    {
-        uiStore.showUserMenu = false;
-    }
     if (!target.closest('.header-right') && !target.closest('#add-menu'))
     {
         uiStore.showAddMenu = false;
@@ -189,6 +189,46 @@ function handlePopState(event: PopStateEvent)
             {
                 // 直接恢复聊天状态，不修改历史
                 chatStore.restoreChatView(chat);
+            }
+        }
+    }
+    else if (state.view === 'mine')
+    {
+        uiStore.setViewState('mine');
+        chatStore.showSettingsPanel = false;
+        // 保存之前的状态信息，用于返回时恢复
+        if (state.previousView && state.previousChatId)
+        {
+            (window as any).minePreviousState = {
+                view: state.previousView,
+                chatId: state.previousChatId
+            };
+        }
+    }
+    // 处理从 mine 返回的情况
+    else if ((!state || state.view === 'list') && (window as any).minePreviousState)
+    {
+        const previousState = (window as any).minePreviousState;
+        (window as any).minePreviousState = null;
+
+        if (previousState.view === 'chat')
+        {
+            if (previousState.chatId === 'broadcasts')
+            {
+                chatStore.openBroadcasts();
+            }
+            else if (previousState.chatId === 'moments')
+            {
+                chatStore.openMoments();
+            }
+            else
+            {
+                const chat = chatStore.chats.find(c => c.chatId === previousState.chatId);
+                if (chat)
+                {
+                    uiStore.setViewState('chat');
+                    chatStore.selectChat(chat);
+                }
             }
         }
     }

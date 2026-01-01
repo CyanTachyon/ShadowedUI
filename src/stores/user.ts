@@ -30,7 +30,7 @@ export const useUserStore = defineStore('user', () =>
     {
         if (!currentUser.value) return null;
         const id = currentUser.value.id;
-        return typeof id === 'object' && id.value ? id.value : id;
+        return typeof id === 'object' && id.value ? id.value : (typeof id === 'number' ? id : null);
     });
 
     async function login(user: string, pass: string): Promise<void>

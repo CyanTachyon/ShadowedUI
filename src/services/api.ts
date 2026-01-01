@@ -125,3 +125,25 @@ export async function fetchMessageFile(messageId: number): Promise<string>
     const res = await fetch(`/api/file/${messageId}`);
     return res.text();
 }
+
+export async function fetchUserInfo(userId: number): Promise<{ id: number; username: string; signature: string | null; } | null>
+{
+    try
+    {
+        const res = await fetch(`/api/user/info?id=${userId}`, {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        if (res.status === 200)
+        {
+            const data = await res.json();
+            return data;
+        }
+        return null;
+    }
+    catch (e)
+    {
+        console.error('Failed to fetch user info:', e);
+        return null;
+    }
+}
