@@ -57,26 +57,20 @@ function setupWebSocketHandlers()
 {
     wsService.on('notify', (data) =>
     {
-        const type = data.type === 'ERROR' ? 'error' : data.type === 'INFO' ? 'success' : 'info';
+        const type = data.type.toLowerCase() as 'info' | 'error' | 'success' | 'warning';
         chatStore.showToast(data.message, type);
-        if (
-            data.type === 'INFO' &&
-            (data.message.includes('Friend added') ||
-                data.message.includes('Group created') ||
-                data.message.includes('Chat renamed'))
-        )
-        {
-            chatStore.refreshChats();
-        }
     });
 
-    wsService.on('login_success', async (data) =>
+    wsService.on('login_result', async (data) =>
     {
-        const success = await userStore.handleLoginSuccess(data);
-        if (success)
+        if (data.success === false)
         {
-            chatStore.refreshChats();
+            if (data.error) chatStore.showToast(data.error, 'error');
+            userStore.logout();
+            return;
         }
+        const success = await userStore.handleLoginSuccess(data);
+        if (success) chatStore.refreshChats();
     });
 
     wsService.on('chats_list', async (data) =>
@@ -126,21 +120,11 @@ function setupWebSocketHandlers()
         chatStore.handleUnreadCount(data);
     });
 
-    wsService.on('public_key_by_username', () =>
-    {
-        // Handled elsewhere if needed
-    });
+    wsService.on('public_key_by_username', () =>{});
 
     wsService.onConnect(async () =>
     {
-        if (userStore.authToken && userStore.username)
-            userStore.relogin();
-    });
-
-    wsService.onDisconnect(() =>
-    {
-        chatStore.showToast('Connection lost. Logging out...', 'error');
-        setTimeout(() => userStore.logout(), 2000);
+        if (userStore.authToken && userStore.username) userStore.relogin();
     });
 }
 

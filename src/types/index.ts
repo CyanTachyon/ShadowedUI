@@ -99,7 +99,7 @@ export interface MomentPermission
     canIViewFriends: boolean;
 }
 
-export type ToastType = 'info' | 'error' | 'success';
+export type ToastType = 'info' | 'error' | 'success' | 'warning';
 
 export interface Toast
 {

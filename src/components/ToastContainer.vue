@@ -52,6 +52,10 @@ const toasts = computed(() => chatStore.toasts);
     border-left: 4px solid #2ea043;
 }
 
+.toast.warning {
+    border-left: 4px solid #f0883e;
+}
+
 .toast-enter-active {
     animation: slideIn 0.3s ease;
 }

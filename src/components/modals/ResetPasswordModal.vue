@@ -67,14 +67,8 @@ async function resetPassword()
             privateKey: newPrivateKey
         });
 
-        if (result.success)
-        {
-            userStore.logout();
-        }
-        else
-        {
-            chatStore.showToast(result.message || 'Password reset failed', 'error');
-        }
+        if (result.success) userStore.logout();
+        else chatStore.showToast(result.message || 'Password reset failed', 'error');
     }
     catch (e: any)
     {

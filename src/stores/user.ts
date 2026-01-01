@@ -180,7 +180,6 @@ export const useUserStore = defineStore('user', () =>
 
     function logout(): void
     {
-        // 清空 localStorage 中的登录信息
         localStorage.removeItem('authToken');
         localStorage.removeItem('passwordKey');
         localStorage.removeItem('username');

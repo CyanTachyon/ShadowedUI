@@ -2,6 +2,8 @@
  * WebSocket service for real-time communication
  */
 
+import { useChatStore } from "@/stores";
+
 type PacketHandler = (data: any) => Promise<void> | void;
 
 interface PendingMessage
@@ -13,13 +15,10 @@ interface PendingMessage
 class WebSocketService
 {
     private socket: WebSocket | null = null;
-    private reconnectAttempts = 0;
-    private maxReconnectAttempts = 3;
     private handlers = new Map<string, Set<PacketHandler>>();
     private packetLock: Promise<void> | null = null;
     private onConnectCallback: (() => void) | null = null;
-    private onDisconnectCallback: (() => void) | null = null;
-    
+
     // 待发送消息队列
     private pendingMessages: PendingMessage[] = [];
     private isLoggedIn = false;
@@ -32,7 +31,6 @@ class WebSocketService
         this.socket.onopen = () =>
         {
             console.log('Connected to WebSocket');
-            this.reconnectAttempts = 0;
             this.onConnectCallback?.();
         };
 
@@ -50,18 +48,8 @@ class WebSocketService
     {
         console.log('Disconnected');
         this.isLoggedIn = false;
-        if (this.reconnectAttempts < this.maxReconnectAttempts)
-        {
-            this.reconnectAttempts++;
-            console.log(`Reconnecting... Attempt ${this.reconnectAttempts}`);
-            setTimeout(() => this.connect(), 1000);
-        }
-        else
-        {
-            // 清空待发送队列
-            this.pendingMessages = [];
-            this.onDisconnectCallback?.();
-        }
+        useChatStore().showToast('Connection lost. will reload the page...', 'error');
+        setTimeout(() => window.location.reload(), 1500);
     }
 
     // 通知登录完成，发送待发送队列中的消息
@@ -102,7 +90,7 @@ class WebSocketService
                     await handler(data);
                 }
             }
-        } 
+        }
         finally
         {
             resolve!();
@@ -121,16 +109,21 @@ class WebSocketService
 
     off(packet: string, handler?: PacketHandler): void
     {
-        if (handler) {
+        if (handler)
+        {
             // Only remove if the specific handler matches
             const handlers = this.handlers.get(packet);
-            if (handlers) {
+            if (handlers)
+            {
                 handlers.delete(handler);
-                if (handlers.size === 0) {
+                if (handlers.size === 0)
+                {
                     this.handlers.delete(packet);
                 }
             }
-        } else {
+        } 
+        else
+        {
             // Remove all handlers for this packet
             this.handlers.delete(packet);
         }
@@ -139,11 +132,6 @@ class WebSocketService
     onConnect(callback: () => void): void
     {
         this.onConnectCallback = callback;
-    }
-
-    onDisconnect(callback: () => void): void
-    {
-        this.onDisconnectCallback = callback;
     }
 
     send(message: string): void
@@ -157,7 +145,7 @@ class WebSocketService
             // 连接断开或未登录，加入待发送队列
             this.pendingMessages.push({
                 message,
-                resolve: () => { }
+                resolve: () => {}
             });
         }
     }
