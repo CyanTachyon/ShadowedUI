@@ -1,9 +1,13 @@
 <template>
     <div class="chat-area">
-        <ChatHeader />
+        <!-- Chat Header only in chat mode -->
+        <ChatHeader v-if="uiStore.viewState === 'chat'" />
         <div class="chat-content" :style="chatContentStyle">
             <!-- Show Mine Settings Panel -->
             <MineSettingsPanel v-if="uiStore.viewState === 'mine'" />
+
+            <!-- Show About Page -->
+            <AboutPage v-else-if="uiStore.viewState === 'about'" />
 
             <!-- Show Moments View when in moments mode -->
             <MomentsView v-else-if="chatStore.isMomentsView" />
@@ -15,7 +19,7 @@
             <ChatSettingsPanel v-if="!chatStore.isMomentsView && chatStore.showSettingsPanel" />
         </div>
         <!-- Input area only in chat mode -->
-        <InputArea v-if="!chatStore.isMomentsView && uiStore.viewState !== 'mine'" />
+        <InputArea v-if="uiStore.viewState === 'chat'" />
     </div>
 </template>
 
@@ -28,6 +32,7 @@ import ChatSettingsPanel from './ChatSettingsPanel.vue';
 import MineSettingsPanel from './MineSettingsPanel.vue';
 import InputArea from './InputArea.vue';
 import MomentsView from './MomentsView.vue';
+import AboutPage from './AboutPage.vue';
 
 const chatStore = useChatStore();
 const uiStore = useUIStore();

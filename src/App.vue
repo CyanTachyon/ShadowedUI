@@ -20,6 +20,7 @@
         <ResetPasswordModal />
         <KickMemberModal />
         <DeleteChatModal />
+        <MomentSettingsModal />
     </div>
 </template>
 
@@ -38,6 +39,7 @@ import CreateGroupModal from '@/components/modals/CreateGroupModal.vue';
 import ResetPasswordModal from '@/components/modals/ResetPasswordModal.vue';
 import KickMemberModal from '@/components/modals/KickMemberModal.vue';
 import DeleteChatModal from '@/components/modals/DeleteChatModal.vue';
+import MomentSettingsModal from '@/components/modals/MomentSettingsModal.vue';
 
 const userStore = useUserStore();
 const chatStore = useChatStore();
@@ -178,8 +180,11 @@ function handlePopState(event: PopStateEvent)
     }
     else if (state.view === 'mine')
     {
-        uiStore.setViewState('mine');
-        chatStore.showSettingsPanel = false;
+        if (uiStore.viewState !== 'mine')
+        {
+            uiStore.setViewState('mine');
+            chatStore.showSettingsPanel = false;
+        }
         // 保存之前的状态信息，用于返回时恢复
         if (state.previousView && state.previousChatId)
         {
@@ -187,6 +192,13 @@ function handlePopState(event: PopStateEvent)
                 view: state.previousView,
                 chatId: state.previousChatId
             };
+        }
+    }
+    else if (state.view === 'about')
+    {
+        if (uiStore.viewState !== 'about')
+        {
+            uiStore.setViewState('about');
         }
     }
     // 处理从 mine 返回的情况

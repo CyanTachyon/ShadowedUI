@@ -14,8 +14,9 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from 'vue';
 import type { Moment } from '@/types';
-import { useChatStore } from '@/stores';
-import { encryptMessageString, decryptMessageString } from '@/utils/crypto';
+import { useChatStore, useUserStore } from '@/stores';
+import { wsService } from '@/services/websocket';
+import { encryptMessageString, decryptMessageString, decryptSymmetricKey } from '@/utils/crypto';
 
 const props = defineProps<{
     visible: boolean;
@@ -27,6 +28,7 @@ const emit = defineEmits<{
 }>();
 
 const chatStore = useChatStore();
+const userStore = useUserStore();
 const textareaRef = ref<HTMLTextAreaElement | null>(null);
 const editedContent = ref('');
 const originalContent = ref('');
@@ -77,14 +79,10 @@ watch(() => [props.visible, props.moment] as const, async ([visible, moment]) =>
 
 async function getDecryptedKey(encryptedKey: string): Promise<CryptoKey | null>
 {
-    const { useUserStore } = await import('@/stores');
-    const userStore = useUserStore();
-    
     if (!userStore.privateKey) return null;
 
     try
     {
-        const { decryptSymmetricKey } = await import('@/utils/crypto');
         return await decryptSymmetricKey(encryptedKey, userStore.privateKey);
     }
     catch (e)
@@ -127,7 +125,6 @@ async function save()
         const encrypted = await encryptMessageString(editedContent.value.trim(), key);
 
         // 发送编辑请求
-        const { wsService } = await import('@/services/websocket');
         wsService.sendPacket('edit_moment', {
             messageId: props.moment.messageId,
             content: encrypted

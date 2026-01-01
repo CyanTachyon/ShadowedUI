@@ -71,6 +71,15 @@
 
             <div class="settings-section-title">Account</div>
 
+            <div class="setting-item" @click="openAbout">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="12" y1="16" x2="12" y2="12"></line>
+                    <circle cx="12" cy="8" r="0.5" fill="currentColor"></circle>
+                </svg>
+                <span>About</span>
+            </div>
+
             <div class="setting-item logout" @click="userStore.logout()">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
@@ -170,6 +179,19 @@ function clearBackground()
 function openResetPassword()
 {
     uiStore.showResetPasswordModal = true;
+}
+
+function openAbout()
+{
+    // 如果当前已经在 about 视图，不重复push历史状态
+    if (history.state?.view === 'about')
+    {
+        uiStore.setViewState('about');
+        return;
+    }
+
+    uiStore.setViewState('about');
+    history.pushState({ view: 'about', previousView: 'mine' }, '', '');
 }
 </script>
 

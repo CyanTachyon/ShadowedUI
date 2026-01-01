@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 
-export type ViewState = 'list' | 'chat' | 'settings' | 'profile' | 'mine';
+export type ViewState = 'list' | 'chat' | 'settings' | 'profile' | 'mine' | 'about';
 
 export const useUIStore = defineStore('ui', () =>
 {
@@ -20,6 +20,7 @@ export const useUIStore = defineStore('ui', () =>
     const showDeleteChatModal = ref(false);
     const showAddMenu = ref(false);
     const showUserProfileModal = ref(false);
+    const showMomentSettingsModal = ref(false);
 
     // Kick member modal state
     const kickMemberTarget = ref<{ chatId: number; chatName: string; userId: number; username: string; } | null>(null);
@@ -46,7 +47,7 @@ export const useUIStore = defineStore('ui', () =>
     {
         viewState.value = state;
 
-        if (state === 'chat' || state === 'settings' || state === 'profile' || state === 'mine')
+        if (state === 'chat' || state === 'settings' || state === 'profile' || state === 'mine' || state === 'about')
         {
             document.body.classList.add('view-chat');
             document.body.classList.remove('view-settings');
@@ -111,6 +112,7 @@ export const useUIStore = defineStore('ui', () =>
         showDeleteChatModal,
         showAddMenu,
         showUserProfileModal,
+        showMomentSettingsModal,
         kickMemberTarget,
         deleteChatTarget,
         profileUserId,

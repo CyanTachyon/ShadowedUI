@@ -5,7 +5,7 @@
             <textarea 
                 v-model="commentText" 
                 class="comment-textarea" 
-                placeholder="写评论..." 
+                placeholder="Write a comment..." 
                 rows="2"
                 @keydown="handleKeyDown"
             ></textarea>
@@ -14,7 +14,7 @@
                 :disabled="!canSend" 
                 @click="sendComment"
             >
-                发送
+                Send
             </button>
         </div>
     </div>
@@ -24,8 +24,9 @@
 import { ref, computed } from 'vue';
 import type { Moment } from '@/types';
 import { useChatStore, useUserStore } from '@/stores';
+import { wsService } from '@/services/websocket';
 import { getAvatarUrl as getAvatarUrlHelper, getUserId } from '@/utils/helpers';
-import { encryptMessageString } from '@/utils/crypto';
+import { encryptMessageString, decryptSymmetricKey } from '@/utils/crypto';
 
 const props = defineProps<{
     moment: Moment;
@@ -69,7 +70,7 @@ async function sendComment()
         const key = await getDecryptedKey(props.moment.key);
         if (!key)
         {
-            chatStore.showToast('无法获取加密密钥', 'error');
+            chatStore.showToast('Unable to get encryption key', 'error');
             return;
         }
 
@@ -77,7 +78,6 @@ async function sendComment()
         const encryptedContent = await encryptMessageString(commentText.value.trim(), key);
 
         // 发送评论请求
-        const { wsService } = await import('@/services/websocket');
         wsService.sendPacket('comment_moment', {
             momentMessageId: props.moment.messageId,
             content: encryptedContent,
@@ -93,7 +93,7 @@ async function sendComment()
     catch (e: any)
     {
         console.error('Failed to send comment', e);
-        chatStore.showToast('发送评论失败', 'error');
+        chatStore.showToast('Failed to send comment', 'error');
     }
 }
 
@@ -103,7 +103,6 @@ async function getDecryptedKey(encryptedKey: string): Promise<CryptoKey | null>
 
     try
     {
-        const { decryptSymmetricKey } = await import('@/utils/crypto');
         return await decryptSymmetricKey(encryptedKey, userStore.privateKey);
     }
     catch (e)

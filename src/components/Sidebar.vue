@@ -51,6 +51,11 @@ function openMineSettings()
     {
         history.replaceState({ view: 'mine' }, '', '');
     }
+    // 如果是从 about 返回，不需要 push 新状态
+    else if (currentState?.view === 'about')
+    {
+        history.replaceState({ view: 'mine' }, '', '');
+    }
     else
     {
         // 从其他视图（包括 chat/settings/list）进入 Mine，压入新状态

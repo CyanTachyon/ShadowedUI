@@ -79,6 +79,7 @@ export interface Friend
 {
     id: number;
     username: string;
+    canViewMoments?: boolean;
 }
 
 export interface Moment
@@ -119,4 +120,23 @@ export interface Toast
     message: string;
     type: ToastType;
     onClick?: () => void;
+}
+
+export interface DeveloperInfo
+{
+    name: string;
+    website: string | null;
+    github: string | null;
+}
+
+export interface ProjectInfo
+{
+    name: string;
+    website: string | null;
+    version: string;
+    developer: DeveloperInfo;
+    donation: {
+        wechatQrCode: string | null;
+        alipayQrCode: string | null;
+    };
 }

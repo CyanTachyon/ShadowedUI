@@ -2,6 +2,8 @@
  * API service for HTTP requests
  */
 
+import type { ProjectInfo } from '@/types';
+
 let authKey: string | null = null;
 
 export async function fetchAuthParams(): Promise<string>
@@ -144,6 +146,28 @@ export async function fetchUserInfo(userId: number): Promise<{ id: number; usern
     catch (e)
     {
         console.error('Failed to fetch user info:', e);
+        return null;
+    }
+}
+
+export async function fetchProjectInfo(): Promise<ProjectInfo | null>
+{
+    try
+    {
+        const res = await fetch('/api/project', {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        if (res.status === 200)
+        {
+            const data = await res.json();
+            return data;
+        }
+        return null;
+    }
+    catch (e)
+    {
+        console.error('Failed to fetch project info:', e);
         return null;
     }
 }
