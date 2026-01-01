@@ -576,8 +576,6 @@ async function handleCommentAdded(data: { comment: any; })
         // Add comment to the moment's comments
         const existingComments = comments.value.get(momentId) || [];
         comments.value.set(momentId, [...existingComments, comment]);
-        
-        chatStore.showToast('New comment added', 'success');
     }
 }
 

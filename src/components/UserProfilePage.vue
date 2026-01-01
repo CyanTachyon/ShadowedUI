@@ -39,7 +39,7 @@
                                 {{ momentPermission?.canFriendViewMine ? 'Yes' : 'No' }}
                             </button>
                         </div>
-                        <button class="action-button full-width" :class="{ primary: momentPermission?.canIViewFriends, secondary: !momentPermission?.canIViewFriends }" @click="viewFriendMoments" :disabled="!momentPermission?.canIViewFriends || loadingPermission">
+                        <button class="action-button full-width" :class="{ primary: momentPermission?.canIViewFriends, secondary: !momentPermission?.canIViewFriends }" @click="viewFriendMoments" :disabled="(!momentPermission?.canIViewFriends || loadingPermission) && userId !== userStore.userId">
                             <MessageIcon />
                             <span>View Their Moments</span>
                         </button>

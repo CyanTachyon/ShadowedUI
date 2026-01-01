@@ -262,6 +262,7 @@ export const useChatStore = defineStore('chat', () =>
             const chat = chats.value.find(c => c.chatId === msg.chatId);
             if (!chat) return;
             if (chat.doNotDisturb) return;
+            if (data.message.readAt) return; // 已读消息不通知
             const message = chat.isPrivate ? `New message from ${msg.senderName || 'a friend'}` : `New message in ${chat.name || 'a group chat'}`;
             showToast(message, 'info', () =>
             {
