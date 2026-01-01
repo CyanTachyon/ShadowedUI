@@ -5,12 +5,7 @@
             <ChatItem v-for="chat in chatStore.chats" :key="chat.chatId" :chat="chat" :is-active="chatStore.currentChatId === chat.chatId" @select="chatStore.selectChat(chat)" />
         </div>
         <div class="tab-bar">
-            <button
-                class="tab-item"
-                :class="{ active: chatStore.isBroadcastView }"
-                @click="chatStore.openBroadcasts()"
-                title="Broadcasts"
-            >
+            <button class="tab-item" :class="{ active: chatStore.isBroadcastView }" @click="chatStore.openBroadcasts()" title="Broadcasts">
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <circle cx="12" cy="12" r="10"></circle>
                     <line x1="12" y1="8" x2="12" y2="12"></line>
@@ -18,24 +13,14 @@
                 </svg>
                 <span>Broadcasts</span>
             </button>
-            <button
-                class="tab-item"
-                :class="{ active: chatStore.isMomentsView }"
-                @click="chatStore.openMoments()"
-                title="Moments"
-            >
+            <button class="tab-item" :class="{ active: chatStore.isMomentsView }" @click="chatStore.openMoments()" title="Moments">
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <circle cx="12" cy="12" r="10"></circle>
                     <path d="M12 8v4l3 3"></path>
                 </svg>
                 <span>Moments</span>
             </button>
-            <button
-                class="tab-item"
-                :class="{ active: uiStore.viewState === 'mine' }"
-                @click="openMineSettings()"
-                title="Mine"
-            >
+            <button class="tab-item" :class="{ active: uiStore.viewState === 'mine' }" @click="openMineSettings()" title="Mine">
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
                     <circle cx="12" cy="7" r="4"></circle>
@@ -54,7 +39,8 @@ import ChatItem from './ChatItem.vue';
 const chatStore = useChatStore();
 const uiStore = useUIStore();
 
-function openMineSettings() {
+function openMineSettings()
+{
     const uiStore = useUIStore();
     const currentState = history.state;
 

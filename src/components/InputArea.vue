@@ -4,7 +4,9 @@
         <div v-if="chatStore.replyingToMessage" class="reply-preview">
             <div class="reply-preview-header">
                 <span class="reply-preview-label">Replying to {{ chatStore.replyingToMessage.senderName }}:</span>
-                <button class="reply-cancel-btn" @click="chatStore.clearReplyingTo()"><CloseIcon /></button>
+                <button class="reply-cancel-btn" @click="chatStore.clearReplyingTo()">
+                    <CloseIcon />
+                </button>
             </div>
             <div class="reply-preview-content">{{ decryptedReplyContent ? truncateReplyContent(decryptedReplyContent) : '[Decrypting...]' }}</div>
         </div>
@@ -110,7 +112,7 @@ function handleKeyDown(e: KeyboardEvent)
     {
         // 如果正在进行输入法组合输入，不发送消息
         if (isComposing.value) return;
-        
+
         if (!!isMobileDevice() === !!e.shiftKey)
         {
             e.preventDefault();
@@ -312,6 +314,7 @@ function truncateReplyContent(content: string): string
         opacity: 0;
         transform: translateY(-10px);
     }
+
     to {
         opacity: 1;
         transform: translateY(0);

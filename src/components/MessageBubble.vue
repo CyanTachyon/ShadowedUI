@@ -1,12 +1,5 @@
 <template>
-    <div 
-        :class="['message', isMe ? 'sent' : 'received']" 
-        :style="{ marginLeft: showSender ? '40px' : '0' }"
-        @contextmenu.prevent="handleContextMenu"
-        @touchstart="handleTouchStart"
-        @touchend="handleTouchEnd"
-        @touchmove="handleTouchMove"
-    >
+    <div :class="['message', isMe ? 'sent' : 'received']" :style="{ marginLeft: showSender ? '40px' : '0' }" v-bind="$attrs" @contextmenu.prevent="handleContextMenu" @touchstart="handleTouchStart" @touchend="handleTouchEnd" @touchmove="handleTouchMove">
         <!-- Sender info for group chats -->
         <template v-if="showSender">
             <div class="message-sender" @click="openUserProfile">{{ message.senderName || `User ${message.senderId}` }}</div>
@@ -49,28 +42,13 @@
     </div>
 
     <!-- Context Menu -->
-    <ContextMenu
-        :visible="contextMenuVisible"
-        :x="contextMenuX"
-        :y="contextMenuY"
-        :items="contextMenuItems"
-        @close="contextMenuVisible = false"
-        @select="handleMenuSelect"
-    />
+    <ContextMenu :visible="contextMenuVisible" :x="contextMenuX" :y="contextMenuY" :items="contextMenuItems" @close="contextMenuVisible = false" @select="handleMenuSelect" />
 
     <!-- Edit Message Modal -->
-    <EditMessageModal
-        :visible="editModalVisible"
-        :message="message"
-        @close="editModalVisible = false"
-    />
+    <EditMessageModal :visible="editModalVisible" :message="message" @close="editModalVisible = false" />
 
     <!-- Image Viewer Modal -->
-    <ImageViewerModal
-        :visible="imageViewerVisible"
-        :imageUrl="viewingImageUrl"
-        @close="imageViewerVisible = false"
-    />
+    <ImageViewerModal :visible="imageViewerVisible" :imageUrl="viewingImageUrl" @close="imageViewerVisible = false" />
 </template>
 
 <script setup lang="ts">
@@ -88,6 +66,10 @@ import EditIcon from './icons/EditIcon.vue';
 import DeleteIcon from './icons/DeleteIcon.vue';
 import CopyIcon from './icons/CopyIcon.vue';
 import DownloadIcon from './icons/DownloadIcon.vue';
+
+defineOptions({
+    inheritAttrs: false
+});
 
 const props = defineProps<{
     message: Message;
@@ -162,7 +144,7 @@ const shouldShowContextMenu = computed(() => contextMenuItems.value.length > 0);
 function handleContextMenu(event: MouseEvent)
 {
     if (!shouldShowContextMenu.value) return;
-    
+
     contextMenuX.value = event.clientX;
     contextMenuY.value = event.clientY;
     contextMenuVisible.value = true;
@@ -171,20 +153,20 @@ function handleContextMenu(event: MouseEvent)
 function handleTouchStart(event: TouchEvent)
 {
     if (!shouldShowContextMenu.value) return;
-    
+
     const touch = event.touches[0];
     touchStartX = touch.clientX;
     touchStartY = touch.clientY;
-    
+
     touchTimer = setTimeout(() =>
     {
         // 阻止文字选中
         event.preventDefault();
-        
+
         contextMenuX.value = touchStartX;
         contextMenuY.value = touchStartY;
         contextMenuVisible.value = true;
-        
+
         // 触发触觉反馈（如果支持）
         if ('vibrate' in navigator)
         {
@@ -205,11 +187,11 @@ function handleTouchEnd()
 function handleTouchMove(event: TouchEvent)
 {
     if (!touchTimer) return;
-    
+
     const touch = event.touches[0];
     const deltaX = Math.abs(touch.clientX - touchStartX);
     const deltaY = Math.abs(touch.clientY - touchStartY);
-    
+
     // 如果移动超过阈值，取消长按
     if (deltaX > TOUCH_MOVE_THRESHOLD || deltaY > TOUCH_MOVE_THRESHOLD)
     {
@@ -288,17 +270,17 @@ async function downloadImage()
         chatStore.showToast('Image not loaded', 'error');
         return;
     }
-    
+
     try
     {
         // 从 blob URL 获取 blob
         const response = await fetch(imageUrl.value);
         const blob = await response.blob();
-        
+
         // 检测图片格式
         const ext = await detectImageExtension(blob);
         const filename = `image_${props.message.id}.${ext}`;
-        
+
         // 创建下载链接
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -308,7 +290,7 @@ async function downloadImage()
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
-        
+
         chatStore.showToast('Image downloaded', 'success');
     }
     catch (e)

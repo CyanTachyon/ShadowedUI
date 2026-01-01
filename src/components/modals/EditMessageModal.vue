@@ -2,13 +2,7 @@
     <div v-if="visible" class="modal-overlay" @click.self="cancel">
         <div class="modal">
             <h3>Edit Message</h3>
-            <textarea 
-                ref="textareaRef" 
-                v-model="editedContent" 
-                class="edit-textarea" 
-                placeholder="Enter message..."
-                @keydown="handleKeyDown"
-            ></textarea>
+            <textarea ref="textareaRef" v-model="editedContent" class="edit-textarea" placeholder="Enter message..." @keydown="handleKeyDown"></textarea>
             <div class="modal-buttons">
                 <button class="button secondary" @click="cancel">Cancel</button>
                 <button class="button primary" :disabled="!canSave" @click="save">Save</button>
@@ -40,9 +34,9 @@ const isDecrypting = ref(false);
 
 const canSave = computed(() => 
 {
-    return editedContent.value.trim() !== '' && 
-           editedContent.value !== originalContent.value &&
-           !isDecrypting.value;
+    return editedContent.value.trim() !== '' &&
+        editedContent.value !== originalContent.value &&
+        !isDecrypting.value;
 });
 
 watch(() => [props.visible, props.message] as const, async ([visible, message]) =>
@@ -50,7 +44,7 @@ watch(() => [props.visible, props.message] as const, async ([visible, message]) 
     if (visible && message)
     {
         isDecrypting.value = true;
-        
+
         // 解密消息内容
         const chatKey = chatStore.getChatKey(message.chatId);
         if (chatKey && message.type.toLowerCase() === 'text')
@@ -68,9 +62,9 @@ watch(() => [props.visible, props.message] as const, async ([visible, message]) 
                 originalContent.value = '';
             }
         }
-        
+
         isDecrypting.value = false;
-        
+
         await nextTick();
         textareaRef.value?.focus();
     }
@@ -101,20 +95,20 @@ function cancel()
 async function save()
 {
     if (!canSave.value || !props.message) return;
-    
+
     const chatKey = chatStore.getChatKey(props.message.chatId);
     if (!chatKey)
     {
         chatStore.showToast('Chat key not available', 'error');
         return;
     }
-    
+
     try
     {
         const encrypted = await encryptMessageString(editedContent.value.trim(), chatKey);
-        
+
         chatStore.editMessage(props.message.id, encrypted);
-        
+
         emit('close');
     }
     catch (e: any)
@@ -218,6 +212,7 @@ async function save()
         opacity: 0;
         transform: scale(0.95);
     }
+
     to {
         opacity: 1;
         transform: scale(1);

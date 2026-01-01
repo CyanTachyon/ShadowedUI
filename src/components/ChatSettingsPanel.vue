@@ -2,7 +2,9 @@
     <div id="chat-settings-panel">
         <div class="settings-header">
             <span>Chat Info</span>
-            <button class="close-btn" @click="chatStore.toggleChatSettings()"><CloseIcon /></button>
+            <button class="close-btn" @click="chatStore.toggleChatSettings()">
+                <CloseIcon />
+            </button>
         </div>
         <div class="settings-content" v-if="members.length">
             <!-- Chat Name Section (Group only) -->
@@ -54,25 +56,32 @@
                 <button class="button do-not-disturb-btn" :class="{ active: chatStore.isDoNotDisturb }" @click="chatStore.setDoNotDisturb(!chatStore.isDoNotDisturb)" style="width: 100%;">
                     {{ chatStore.isDoNotDisturb ? 'Disable' : 'Enable' }} Do Not Disturb
                 </button>
-                
+
+                <!-- Burn After Read Controls -->
+                <div class="burn-after-read-controls">
+                    <div class="section-title">Burn After Read</div>
+                    <div class="burn-time-select">
+                        <SelectDropdown
+                            :options="burnTimeOptions"
+                            v-model="selectedBurnTime"
+                            placeholder="Off"
+                            @update:modelValue="onBurnTimeChange"
+                        />
+                    </div>
+                    <div class="burn-hint" v-if="currentBurnTime">
+                        Messages will be deleted {{ formatBurnTime(currentBurnTime) }} after being read
+                    </div>
+                </div>
+
                 <!-- Moment Permission Controls -->
                 <div class="moment-controls">
                     <div class="moment-control-item">
                         <span>Allow to view my moments</span>
-                        <button 
-                            class="toggle-btn" 
-                            :class="{ active: momentPermission?.canFriendViewMine }"
-                            @click="toggleMomentPermission"
-                            :disabled="loadingPermission"
-                        >
+                        <button class="toggle-btn" :class="{ active: momentPermission?.canFriendViewMine }" @click="toggleMomentPermission" :disabled="loadingPermission">
                             {{ momentPermission?.canFriendViewMine ? 'Yes' : 'No' }}
                         </button>
                     </div>
-                    <button 
-                        class="button view-moments-btn" 
-                        @click="viewFriendMoments"
-                        :disabled="!momentPermission?.canIViewFriends"
-                    >
+                    <button class="button view-moments-btn" @click="viewFriendMoments" :disabled="!momentPermission?.canIViewFriends">
                         View Their Moments
                     </button>
                 </div>
@@ -93,13 +102,15 @@ import { ref, computed, watch, onMounted } from 'vue';
 import { useChatStore, useUserStore, useUIStore } from '@/stores';
 import { wsService } from '@/services/websocket';
 import { getAvatarUrl, getUserId } from '@/utils/helpers';
-import { 
-    encryptSymmetricKey,
-    decryptSymmetricKey,
-    importPublicKey
-} from '@/utils/crypto';
+import
+    {
+        encryptSymmetricKey,
+        decryptSymmetricKey,
+        importPublicKey
+    } from '@/utils/crypto';
 import type { ChatMember, MomentPermission } from '@/types';
 import CloseIcon from './icons/CloseIcon.vue';
+import SelectDropdown from './SelectDropdown/SelectDropdown.vue';
 
 const chatStore = useChatStore();
 const userStore = useUserStore();
@@ -108,10 +119,49 @@ const uiStore = useUIStore();
 const newName = ref('');
 const momentPermission = ref<MomentPermission | null>(null);
 const loadingPermission = ref(false);
+const selectedBurnTime = ref<number | null>(null);
+
+// 阅后即焚时间选项
+const burnTimeOptions = [
+    { value: null, label: 'Off' },
+    { value: 10000, label: '10 seconds' },
+    { value: 30000, label: '30 seconds' },
+    { value: 60000, label: '1 minute' },
+    { value: 300000, label: '5 minutes' },
+    { value: 3600000, label: '1 hour' },
+];
 
 const details = computed(() => chatStore.currentChatDetails);
 
 const isPrivate = computed(() => details.value?.isPrivate ?? true);
+
+// 当前聊天的阅后即焚时间
+const currentBurnTime = computed(() =>
+{
+    if (!chatStore.currentChatId) return null;
+    const chat = chatStore.chats.find(c => c.chatId === chatStore.currentChatId);
+    return chat?.burnTime ?? null;
+});
+
+// 监听 currentBurnTime 变化来更新 select 值
+watch(currentBurnTime, (newVal) =>
+{
+    selectedBurnTime.value = newVal;
+}, { immediate: true });
+
+// 格式化阅后即焚时间显示
+function formatBurnTime(ms: number): string
+{
+    if (ms < 60000) return `${ms / 1000} seconds`;
+    if (ms < 3600000) return `${ms / 60000} minute${ms >= 120000 ? 's' : ''}`;
+    return `${ms / 3600000} hour${ms >= 7200000 ? 's' : ''}`;
+}
+
+// 阅后即焚时间变化处理
+function onBurnTimeChange()
+{
+    chatStore.setBurnTime(selectedBurnTime.value);
+}
 
 const chatName = computed(() =>
 {
@@ -131,7 +181,8 @@ const myId = computed(() =>
 
 const isOwner = computed(() => ownerId.value === myId.value);
 
-const otherMemberId = computed(() => {
+const otherMemberId = computed(() =>
+{
     if (!isPrivate.value) return null;
     const otherMember = members.value.find(m => m.id !== myId.value);
     return otherMember?.id || null;
@@ -198,7 +249,7 @@ function deleteChat()
     // 找到对方的用户信息（不是我自己的那个成员）
     const otherMember = members.value.find(m => m.id !== myId.value);
     if (!otherMember) return;
-    
+
     uiStore.openDeleteChatModal(
         details.value.id,
         otherMember.id,
@@ -208,7 +259,8 @@ function deleteChat()
 }
 
 // Moment permission functions
-function loadMomentPermission() {
+function loadMomentPermission()
+{
     if (!isPrivate.value || !otherMemberId.value) return;
     loadingPermission.value = true;
     wsService.sendPacket('get_moment_permission', {
@@ -216,13 +268,15 @@ function loadMomentPermission() {
     });
 }
 
-async function toggleMomentPermission() {
+async function toggleMomentPermission()
+{
     if (!otherMemberId.value || !momentPermission.value) return;
-    
+
     const newState = !momentPermission.value.canFriendViewMine;
-    
+
     // If disabling, just call toggle_moment_permission to remove member
-    if (!newState) {
+    if (!newState)
+    {
         loadingPermission.value = true;
         wsService.sendPacket('toggle_moment_permission', {
             friendId: otherMemberId.value,
@@ -230,144 +284,167 @@ async function toggleMomentPermission() {
         });
         return;
     }
-    
+
     // If enabling, we need to:
     // 1. Get my moment key
     // 2. Get friend's public key
     // 3. Encrypt key with friend's public key
     // 4. Send get_moment_permission with encryptedKey
-    
-    try {
+
+    try
+    {
         loadingPermission.value = true;
-        
+
         // Get my moment key
-        const myMomentKeyResult = await new Promise<{ exists: boolean; key?: string; chatId?: number }>((resolve, reject) => {
-            const handler = (data: any) => {
+        const myMomentKeyResult = await new Promise<{ exists: boolean; key?: string; chatId?: number; }>((resolve, reject) =>
+        {
+            const handler = (data: any) =>
+            {
                 wsService.off('my_moment_key', handler);
                 resolve(data);
             };
             wsService.on('my_moment_key', handler);
             wsService.sendPacket('get_my_moment_key', {});
-            
+
             // 10 second timeout
-            setTimeout(() => {
+            setTimeout(() =>
+            {
                 wsService.off('my_moment_key', handler);
                 reject(new Error('Timeout getting moment key'));
             }, 10000);
         });
-        
+
         // Handle case where moment chat doesn't exist yet
-        if (!myMomentKeyResult.exists || !myMomentKeyResult.key) {
+        if (!myMomentKeyResult.exists || !myMomentKeyResult.key)
+        {
             // Need to create a new moment key
             const myPublicKey = await userStore.getMyPublicKey();
-            if (!myPublicKey) {
+            if (!myPublicKey)
+            {
                 chatStore.showToast('Public key not available', 'error');
                 loadingPermission.value = false;
                 return;
             }
-            
+
             // Generate a new symmetric key
             const key = await window.crypto.subtle.generateKey(
                 { name: 'AES-GCM', length: 256 },
                 true,
                 ['encrypt', 'decrypt']
             );
-            
+
             // Encrypt it with my own public key
             const encryptedKey = await encryptSymmetricKey(key, myPublicKey);
-            
+
             // Post first moment to create the chat
             wsService.sendPacket('post_moment', {
                 content: '', // Empty content, just to create the chat
                 type: 'TEXT',
                 key: encryptedKey || null
             });
-            
+
             // Wait a bit for the chat to be created, then retry
             setTimeout(() => toggleMomentPermission(), 1000);
             return;
         }
-        
+
         // Decrypt my moment key
-        if (!userStore.privateKey) {
+        if (!userStore.privateKey)
+        {
             chatStore.showToast('Private key not available', 'error');
             loadingPermission.value = false;
             return;
         }
-        
+
         const decryptedMomentKey = await decryptSymmetricKey(myMomentKeyResult.key, userStore.privateKey);
-        if (!decryptedMomentKey) {
+        if (!decryptedMomentKey)
+        {
             chatStore.showToast('Failed to decrypt moment key', 'error');
             loadingPermission.value = false;
             return;
         }
-        
+
         // Get friend's public key
-        const friendPublicKey = await new Promise<string | null>((resolve, reject) => {
-            const handler = (data: any) => {
+        const friendPublicKey = await new Promise<string | null>((resolve, reject) =>
+        {
+            const handler = (data: any) =>
+            {
                 wsService.off('public_key_by_username', handler);
                 resolve(data.publicKey || null);
             };
             wsService.on('public_key_by_username', handler);
             const otherMember = members.value.find(m => m.id === otherMemberId.value);
-            if (otherMember) {
+            if (otherMember)
+            {
                 wsService.sendPacket('get_public_key_by_username', { username: otherMember.username });
-            } else {
+            } else
+            {
                 resolve(null);
             }
-            
+
             // 10 second timeout
-            setTimeout(() => {
+            setTimeout(() =>
+            {
                 wsService.off('public_key_by_username', handler);
                 reject(new Error('Timeout getting public key'));
             }, 10000);
         });
-        
-        if (!friendPublicKey) {
+
+        if (!friendPublicKey)
+        {
             chatStore.showToast('Failed to get friend public key', 'error');
             loadingPermission.value = false;
             return;
         }
-        
+
         // Encrypt moment key with friend's public key
         const encryptedFriendKey = await encryptSymmetricKey(decryptedMomentKey, await importPublicKey(friendPublicKey));
-        
+
         // Send get_moment_permission with encryptedKey to add friend as viewer
         wsService.sendPacket('get_moment_permission', {
             friendId: otherMemberId.value,
             encryptedKey: encryptedFriendKey
         });
-        
-    } catch (e) {
+
+    } catch (e)
+    {
         console.error('Failed to enable moment permission:', e);
         chatStore.showToast('Failed to enable moment permission', 'error');
         loadingPermission.value = false;
     }
 }
 
-function viewFriendMoments() {
+function viewFriendMoments()
+{
     if (!otherMemberId.value) return;
     chatStore.viewUserMoments(otherMemberId.value);
 }
 
 // Watch for details changes to load moment permission
-watch(() => details.value, () => {
-    if (isPrivate.value && otherMemberId.value) {
+watch(() => details.value, () =>
+{
+    if (isPrivate.value && otherMemberId.value)
+    {
         loadMomentPermission();
     }
 }, { immediate: true });
 
 // Register WebSocket handlers
-onMounted(() => {
-    wsService.on('moment_permission_status', (data: MomentPermission) => {
+onMounted(() =>
+{
+    wsService.on('moment_permission_status', (data: MomentPermission) =>
+    {
         loadingPermission.value = false;
-        if (data.friendId === otherMemberId.value) {
+        if (data.friendId === otherMemberId.value)
+        {
             momentPermission.value = data;
         }
     });
-    wsService.on('moment_permission_updated', (data: { friendId: number; canView: boolean }) => {
+    wsService.on('moment_permission_updated', (data: { friendId: number; canView: boolean; }) =>
+    {
         loadingPermission.value = false;
-        if (data.friendId === otherMemberId.value && momentPermission.value) {
+        if (data.friendId === otherMemberId.value && momentPermission.value)
+        {
             momentPermission.value.canFriendViewMine = data.canView;
         }
     });
@@ -560,6 +637,29 @@ onMounted(() => {
     margin-top: 15px;
     padding-top: 15px;
     border-top: 1px solid var(--border-color);
+}
+
+.burn-after-read-controls {
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: 1px solid var(--border-color);
+}
+
+.burn-after-read-controls .section-title {
+    font-size: 0.8em;
+    color: var(--secondary-color);
+    text-transform: uppercase;
+    margin-bottom: 10px;
+}
+
+.burn-time-select {
+    margin-bottom: 8px;
+}
+
+.burn-hint {
+    font-size: 0.8em;
+    color: var(--secondary-color);
+    font-style: italic;
 }
 
 .moment-control-item {

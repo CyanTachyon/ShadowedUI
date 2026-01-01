@@ -53,7 +53,8 @@ const chatContentStyle = computed(() =>
     display: flex;
     flex-direction: column;
     background-color: var(--bg-color);
-    min-width: 0; /* 防止子元素撑大容器 */
+    min-width: 0;
+    /* 防止子元素撑大容器 */
     overflow: hidden;
 }
 

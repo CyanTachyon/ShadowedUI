@@ -35,21 +35,11 @@
                     <div class="moment-controls">
                         <div class="moment-control-item">
                             <span class="control-label">Allow to view my moments</span>
-                            <button 
-                                class="toggle-btn" 
-                                :class="{ active: momentPermission?.canFriendViewMine }"
-                                @click="toggleMomentPermission"
-                                :disabled="loadingPermission"
-                            >
+                            <button class="toggle-btn" :class="{ active: momentPermission?.canFriendViewMine }" @click="toggleMomentPermission" :disabled="loadingPermission">
                                 {{ momentPermission?.canFriendViewMine ? 'Yes' : 'No' }}
                             </button>
                         </div>
-                        <button 
-                            class="action-button full-width" 
-                            :class="{ primary: momentPermission?.canIViewFriends, secondary: !momentPermission?.canIViewFriends }"
-                            @click="viewFriendMoments"
-                            :disabled="!momentPermission?.canIViewFriends || loadingPermission"
-                        >
+                        <button class="action-button full-width" :class="{ primary: momentPermission?.canIViewFriends, secondary: !momentPermission?.canIViewFriends }" @click="viewFriendMoments" :disabled="!momentPermission?.canIViewFriends || loadingPermission">
                             <MessageIcon />
                             <span>View Their Moments</span>
                         </button>
@@ -125,13 +115,14 @@ onMounted(async () =>
         await loadUserProfile(userId.value);
         loadMomentPermission();
     }
-    
+
     // Register WebSocket handlers
     wsService.on('moment_permission_status', handleMomentPermissionStatus);
     wsService.on('moment_permission_updated', handleMomentPermissionUpdated);
 });
 
-onUnmounted(() => {
+onUnmounted(() =>
+{
     // Clean up WebSocket handlers
     wsService.off('moment_permission_status', handleMomentPermissionStatus);
     wsService.off('moment_permission_updated', handleMomentPermissionUpdated);
@@ -141,7 +132,7 @@ async function loadUserProfile(targetUserId: number)
 {
     loading.value = true;
     user.value = null;
-    
+
     try
     {
         // Try to fetch from API first
@@ -184,7 +175,7 @@ function getUsernameById(targetUserId: number): string | null
             return chat.parsedOtherNames[idx] || null;
         }
     }
-    
+
     // Check current chat details
     if (chatStore.currentChatDetails)
     {
@@ -208,12 +199,13 @@ function getUsernameById(targetUserId: number): string | null
 function startChat()
 {
     if (!user.value) return;
-    
+
     chatStore.addFriend(user.value.username);
 }
 
 // Moment permission functions
-function loadMomentPermission() {
+function loadMomentPermission()
+{
     if (!userId.value) return;
     loadingPermission.value = true;
     wsService.sendPacket('get_moment_permission', {
@@ -221,13 +213,15 @@ function loadMomentPermission() {
     });
 }
 
-async function toggleMomentPermission() {
+async function toggleMomentPermission()
+{
     if (!userId.value || !momentPermission.value) return;
-    
+
     const newState = !momentPermission.value.canFriendViewMine;
-    
+
     // If disabling, just call toggle_moment_permission to remove member
-    if (!newState) {
+    if (!newState)
+    {
         loadingPermission.value = true;
         wsService.sendPacket('toggle_moment_permission', {
             friendId: userId.value,
@@ -235,136 +229,156 @@ async function toggleMomentPermission() {
         });
         return;
     }
-    
+
     // If enabling, we need to:
     // 1. Get my moment key
     // 2. Get friend's public key
     // 3. Encrypt key with friend's public key
     // 4. Send get_moment_permission with encryptedKey
-    
-    try {
+
+    try
+    {
         loadingPermission.value = true;
-        
+
         // Get my moment key
-        const myMomentKeyResult = await new Promise<{ exists: boolean; key?: string; chatId?: number }>((resolve, reject) => {
-            const handler = (data: any) => {
+        const myMomentKeyResult = await new Promise<{ exists: boolean; key?: string; chatId?: number; }>((resolve, reject) =>
+        {
+            const handler = (data: any) =>
+            {
                 wsService.off('my_moment_key', handler);
                 resolve(data);
             };
             wsService.on('my_moment_key', handler);
             wsService.sendPacket('get_my_moment_key', {});
-            
+
             // 10 second timeout
-            setTimeout(() => {
+            setTimeout(() =>
+            {
                 wsService.off('my_moment_key', handler);
                 reject(new Error('Timeout getting moment key'));
             }, 10000);
         });
-        
+
         // Handle case where moment chat doesn't exist yet
-        if (!myMomentKeyResult.exists || !myMomentKeyResult.key) {
+        if (!myMomentKeyResult.exists || !myMomentKeyResult.key)
+        {
             // Need to create a new moment key
             const myPublicKey = await userStore.getMyPublicKey();
-            if (!myPublicKey) {
+            if (!myPublicKey)
+            {
                 chatStore.showToast('Public key not available', 'error');
                 loadingPermission.value = false;
                 return;
             }
-            
+
             // Generate a new symmetric key
             const key = await window.crypto.subtle.generateKey(
                 { name: 'AES-GCM', length: 256 },
                 true,
                 ['encrypt', 'decrypt']
             );
-            
+
             // Encrypt it with my own public key
             const encryptedKey = await encryptSymmetricKey(key, myPublicKey);
-            
+
             // Post first moment to create the chat
             wsService.sendPacket('post_moment', {
                 content: '', // Empty content, just to create the chat
                 type: 'TEXT',
                 key: encryptedKey || null
             });
-            
+
             // Wait a bit for the chat to be created, then retry
             setTimeout(() => toggleMomentPermission(), 1000);
             return;
         }
-        
+
         // Decrypt my moment key
-        if (!userStore.privateKey) {
+        if (!userStore.privateKey)
+        {
             chatStore.showToast('Private key not available', 'error');
             loadingPermission.value = false;
             return;
         }
-        
+
         const decryptedMomentKey = await decryptSymmetricKey(myMomentKeyResult.key, userStore.privateKey);
-        if (!decryptedMomentKey) {
+        if (!decryptedMomentKey)
+        {
             chatStore.showToast('Failed to decrypt moment key', 'error');
             loadingPermission.value = false;
             return;
         }
-        
+
         // Get friend's public key
-        const friendPublicKey = await new Promise<string | null>((resolve, reject) => {
-            const handler = (data: any) => {
+        const friendPublicKey = await new Promise<string | null>((resolve, reject) =>
+        {
+            const handler = (data: any) =>
+            {
                 wsService.off('public_key_by_username', handler);
                 resolve(data.publicKey || null);
             };
             wsService.on('public_key_by_username', handler);
-            if (user.value) {
+            if (user.value)
+            {
                 wsService.sendPacket('get_public_key_by_username', { username: user.value.username });
-            } else {
+            } else
+            {
                 resolve(null);
             }
-            
+
             // 10 second timeout
-            setTimeout(() => {
+            setTimeout(() =>
+            {
                 wsService.off('public_key_by_username', handler);
                 reject(new Error('Timeout getting public key'));
             }, 10000);
         });
-        
-        if (!friendPublicKey) {
+
+        if (!friendPublicKey)
+        {
             chatStore.showToast('Failed to get friend public key', 'error');
             loadingPermission.value = false;
             return;
         }
-        
+
         // Encrypt moment key with friend's public key
         const encryptedFriendKey = await encryptSymmetricKey(decryptedMomentKey, await importPublicKey(friendPublicKey));
-        
+
         // Send get_moment_permission with encryptedKey to add friend as viewer
         wsService.sendPacket('get_moment_permission', {
             friendId: userId.value,
             encryptedKey: encryptedFriendKey
         });
-        
-    } catch (e) {
+
+    } catch (e)
+    {
         console.error('Failed to enable moment permission:', e);
         chatStore.showToast('Failed to enable moment permission', 'error');
         loadingPermission.value = false;
     }
 }
 
-function viewFriendMoments() {
+function viewFriendMoments()
+{
     if (!userId.value) return;
     chatStore.viewUserMoments(userId.value);
 }
 
 // WebSocket handlers
-const handleMomentPermissionStatus = (data: MomentPermission) => {
+const handleMomentPermissionStatus = (data: MomentPermission) =>
+{
     loadingPermission.value = false;
-    if (data.friendId === userId.value) {
+    if (data.friendId === userId.value)
+    {
         momentPermission.value = data;
     }
 };
 
-const handleMomentPermissionUpdated = (data: { friendId: number; canView: boolean }) => {
+const handleMomentPermissionUpdated = (data: { friendId: number; canView: boolean; }) =>
+{
     loadingPermission.value = false;
-    if (data.friendId === userId.value && momentPermission.value) {
+    if (data.friendId === userId.value && momentPermission.value)
+    {
         momentPermission.value.canFriendViewMine = data.canView;
     }
 };

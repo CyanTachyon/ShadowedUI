@@ -22,6 +22,7 @@ export interface Chat
     parsedOtherNames?: string[];
     ownerId?: number;
     doNotDisturb: boolean;
+    burnTime?: number | null; // 阅后即焚时间（毫秒），null或undefined表示关闭
 }
 
 export interface ReplyInfo
@@ -43,6 +44,7 @@ export interface Message
     type: 'TEXT' | 'IMAGE';
     time: string;
     replyTo?: ReplyInfo;
+    readAt?: number | null; // 已读时间戳，null或undefined表示未读
 }
 
 export interface Broadcast

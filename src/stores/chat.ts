@@ -243,17 +243,29 @@ export const useChatStore = defineStore('chat', () =>
 
     function handleReceiveMessage(data: { message: Message; }): void
     {
-        if (data.message.chatId === currentChatId.value)
-            mergeMessages([data.message]);
-        if (data.message.chatId !== currentChatId.value || !isPageInForeground())
+        const msg = data.message;
+        
+        // 检查是否是删除消息（空内容TEXT类型）
+        const isDeleteMessage = msg.type === 'TEXT' && !msg.content;
+        
+        // 检查是否是更新已有消息（消息ID已存在）
+        const isExistingMessage = currentChatMessages.value.some(m => m.id === msg.id);
+        
+        if (msg.chatId === currentChatId.value)
+            mergeMessages([msg]);
+        
+        // 只对新消息触发通知，不包括删除或更新
+        if (isDeleteMessage || isExistingMessage) return;
+        
+        if (msg.chatId !== currentChatId.value || !isPageInForeground())
         {
-            const chat = chats.value.find(c => c.chatId === data.message.chatId);
+            const chat = chats.value.find(c => c.chatId === msg.chatId);
             if (!chat) return;
             if (chat.doNotDisturb) return;
-            const message = chat.isPrivate ? `New message from ${data.message.senderName || 'a friend'}` : `New message in ${chat.name || 'a group chat'}`;
+            const message = chat.isPrivate ? `New message from ${msg.senderName || 'a friend'}` : `New message in ${chat.name || 'a group chat'}`;
             showToast(message, 'info', () =>
             {
-                const chat = chats.value.find(c => c.chatId === data.message.chatId);
+                const chat = chats.value.find(c => c.chatId === msg.chatId);
                 if (chat) selectChat(chat);
             });
         }
@@ -606,6 +618,30 @@ export const useChatStore = defineStore('chat', () =>
         });
     }
 
+    // 设置阅后即焚时间
+    function setBurnTime(burnTime: number | null): void
+    {
+        if (!currentChatId.value) return;
+        wsService.sendPacket('set_burn_time', {
+            chatId: currentChatId.value,
+            burnTime
+        });
+    }
+
+    // 获取当前聊天的阅后即焚时间
+    function getCurrentBurnTime(): number | null
+    {
+        if (!currentChatId.value) return null;
+        const chat = chats.value.find(c => c.chatId === currentChatId.value);
+        return chat?.burnTime ?? null;
+    }
+
+    // 标记消息为已读
+    function markMessageRead(messageId: number): void
+    {
+        wsService.sendPacket('mark_message_read', { messageId });
+    }
+
     // Refresh
     function refreshChats(): void
     {
@@ -746,6 +782,9 @@ export const useChatStore = defineStore('chat', () =>
         updateChatName,
         kickMember,
         setDoNotDisturb,
+        setBurnTime,
+        getCurrentBurnTime,
+        markMessageRead,
         refreshChats,
         setFriends,
         handleUnreadCount,

@@ -10,7 +10,9 @@
 
         <div class="header-right">
             <!-- Add Button & Menu -->
-            <button class="icon-button plus-button" @click.stop="toggleAddMenu" title="Add New"><PlusIcon /></button>
+            <button class="icon-button plus-button" @click.stop="toggleAddMenu" title="Add New">
+                <PlusIcon />
+            </button>
             <div v-if="uiStore.showAddMenu" class="dropdown-menu show right">
                 <div class="menu-item" @click="openAddFriend">Add Friend</div>
                 <div class="menu-item" @click="openCreateGroup">Create Group Chat</div>

@@ -9,14 +9,7 @@
                         <circle cx="12" cy="13" r="4"></circle>
                     </svg>
                 </label>
-                <input
-                    id="avatar-upload"
-                    ref="avatarInput"
-                    type="file"
-                    accept="image/*"
-                    style="display: none"
-                    @change="uploadAvatar"
-                />
+                <input id="avatar-upload" ref="avatarInput" type="file" accept="image/*" style="display: none" @change="uploadAvatar" />
             </div>
             <div class="mine-user-info">
                 <div class="mine-username">{{ userStore.currentUser?.username || 'User' }}</div>
@@ -26,15 +19,7 @@
 
         <div class="mine-signature-section">
             <div class="signature-label">Signature</div>
-            <input
-                v-model="signature"
-                type="text"
-                class="signature-input"
-                placeholder="Enter your signature (max 100 chars)"
-                maxlength="100"
-                @blur="saveSignature"
-                @keyup.enter="saveSignature"
-            />
+            <input v-model="signature" type="text" class="signature-input" placeholder="Enter your signature (max 100 chars)" maxlength="100" @blur="saveSignature" @keyup.enter="saveSignature" />
             <div class="char-count">{{ signature.length }}/100</div>
         </div>
 
@@ -110,68 +95,80 @@ const userStore = useUserStore();
 const chatStore = useChatStore();
 const uiStore = useUIStore();
 
-const avatarInput = ref<HTMLInputElement | null>(null);
 const backgroundInput = ref<HTMLInputElement | null>(null);
 const signature = ref(userStore.currentUser?.signature || '');
 
-watch(() => userStore.currentUser?.signature, (newSignature) => {
-    if (newSignature !== undefined) {
+watch(() => userStore.currentUser?.signature, (newSignature) =>
+{
+    if (newSignature !== undefined)
+    {
         signature.value = newSignature;
     }
 });
 
-function saveSignature() {
+function saveSignature()
+{
     if (signature.value === (userStore.currentUser?.signature || '')) return;
     wsService.sendPacket('update_signature', { signature: signature.value });
-    if (userStore.currentUser) {
+    if (userStore.currentUser)
+    {
         userStore.currentUser.signature = signature.value;
     }
     chatStore.showToast('Signature updated', 'success');
 }
 
-async function uploadAvatar(event: Event) {
+async function uploadAvatar(event: Event)
+{
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
     if (!file || !userStore.currentUser || !userStore.authToken) return;
 
-    try {
+    try
+    {
         await uploadAvatarApi(file, userStore.currentUser.username, userStore.authToken);
         chatStore.showToast('Avatar updated', 'success');
     }
-    catch (e: any) {
+    catch (e: any)
+    {
         chatStore.showToast(e.message || 'Error uploading avatar', 'error');
     }
     input.value = '';
 }
 
-function triggerBackgroundUpload() {
+function triggerBackgroundUpload()
+{
     backgroundInput.value?.click();
 }
 
-function uploadBackground(event: Event) {
+function uploadBackground(event: Event)
+{
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = (e) =>
+    {
         const imageData = e.target?.result as string;
         uiStore.setChatBackground(imageData);
         chatStore.showToast('Background updated', 'success');
     };
-    reader.onerror = () => {
+    reader.onerror = () =>
+    {
         chatStore.showToast('Error reading image', 'error');
     };
     reader.readAsDataURL(file);
     input.value = '';
 }
 
-function clearBackground() {
+function clearBackground()
+{
     uiStore.setChatBackground(null);
     chatStore.showToast('Background cleared', 'success');
 }
 
-function openResetPassword() {
+function openResetPassword()
+{
     uiStore.showResetPasswordModal = true;
 }
 </script>
@@ -195,6 +192,7 @@ function openResetPassword() {
         opacity: 0;
         transform: translateY(10px);
     }
+
     to {
         opacity: 1;
         transform: translateY(0);

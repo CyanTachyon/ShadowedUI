@@ -94,8 +94,10 @@ function goBack()
     display: flex;
     align-items: center;
     flex: 1;
-    min-width: 0; /* 允许子元素收缩 */
-    overflow: hidden; /* 防止撑大容器 */
+    min-width: 0;
+    /* 允许子元素收缩 */
+    overflow: hidden;
+    /* 防止撑大容器 */
 }
 
 /* 聊天标题文本省略号样式 */

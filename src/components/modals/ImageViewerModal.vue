@@ -3,11 +3,17 @@
         <div class="image-container" :style="{ transform: `scale(${scale}) translate(${imageOffsetX}px, ${imageOffsetY}px)` }">
             <img v-if="imageUrl" :src="imageUrl" class="viewing-image" alt="Zoomed image" @mousedown="startDrag" />
         </div>
-        <button class="close-button" @click="close"><CloseIcon /></button>
+        <button class="close-button" @click="close">
+            <CloseIcon />
+        </button>
         <div class="zoom-controls">
-            <button class="zoom-button" @click.stop="zoomOut"><MinusIcon /></button>
+            <button class="zoom-button" @click.stop="zoomOut">
+                <MinusIcon />
+            </button>
             <span class="zoom-level">{{ Math.round(scale * 100) }}%</span>
-            <button class="zoom-button" @click.stop="zoomIn"><PlusIcon /></button>
+            <button class="zoom-button" @click.stop="zoomIn">
+                <PlusIcon />
+            </button>
         </div>
     </div>
 </template>
@@ -97,13 +103,13 @@ function onDrag(event: MouseEvent)
 {
     if (!isDragging.value) return;
     event.preventDefault();
-    
+
     const deltaX = event.clientX - dragStartX.value;
     const deltaY = event.clientY - dragStartY.value;
-    
+
     imageOffsetX.value += deltaX;
     imageOffsetY.value += deltaY;
-    
+
     dragStartX.value = event.clientX;
     dragStartY.value = event.clientY;
 }
@@ -164,10 +170,10 @@ function handleTouchMove(event: TouchEvent)
         const touch = event.touches[0];
         const deltaX = touch.clientX - touchStartX.value;
         const deltaY = touch.clientY - touchStartY.value;
-        
+
         imageOffsetX.value += deltaX;
         imageOffsetY.value += deltaY;
-        
+
         touchStartX.value = touch.clientX;
         touchStartY.value = touch.clientY;
     }
