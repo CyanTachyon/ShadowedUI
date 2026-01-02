@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import type { Chat, Message, Broadcast, ChatDetails, Friend, Toast, ToastType } from '@/types';
+import type { Chat, Message, Broadcast, ChatDetails, Friend, Toast, ToastType, UploadTask } from '@/types';
 import { wsService } from '@/services/websocket';
 import { fetchPublicKeyByUsername } from '@/services/api';
 import
@@ -34,6 +34,10 @@ export const useChatStore = defineStore('chat', () =>
     // Moments state
     const isMomentsView = ref(false);
     const viewingUserMomentsId = ref<number | null>(null);
+
+    // Upload state
+    const uploadTasks = ref<UploadTask[]>([]);
+    const currentUploadProgress = ref<{ taskId: string; progress: number; } | null>(null);
 
     // UI state
     const toasts = ref<Toast[]>([]);
@@ -740,6 +744,8 @@ export const useChatStore = defineStore('chat', () =>
         hasMoreBroadcasts,
         isMomentsView,
         viewingUserMomentsId,
+        uploadTasks,
+        currentUploadProgress,
         toasts,
         pendingChatToOpen,
         hasMoreMessages,

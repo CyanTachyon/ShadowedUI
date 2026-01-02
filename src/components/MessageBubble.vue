@@ -33,6 +33,48 @@
                     <div v-if="!imagePlaceholder && !imageUrl" class="loading-image">Loading image...</div>
                 </div>
             </template>
+            <template v-else-if="message.type.toLowerCase() === 'video'">
+                <div class="video-container">
+                    <!-- 视频缩略图 -->
+                    <div v-if="!showVideoPlayer && (videoThumbnailUrl || videoPlaceholder)" class="video-thumbnail-wrapper" @click="playVideo">
+                        <img :src="videoThumbnailUrl ?? videoPlaceholder ?? ''" class="video-thumbnail" alt="Video thumbnail" />
+                        <div class="video-play-overlay">
+                            <PlayIcon />
+                        </div>
+                        <div class="video-duration" v-if="videoMetadata">{{ formatVideoDuration(videoMetadata.duration) }}</div>
+                    </div>
+                    <!-- 视频加载中 -->
+                    <div v-else-if="!showVideoPlayer && !videoUrl" class="loading-video">Loading video...</div>
+                    <!-- 视频播放器 -->
+                    <div v-if="showVideoPlayer && videoUrl" class="video-player-wrapper">
+                        <video ref="videoPlayer" :src="videoUrl" controls class="video-player" @ended="videoEnded"></video>
+                        <button class="video-close-btn" @click="closeVideoPlayer">×</button>
+                    </div>
+                    <!-- 下载进度 -->
+                    <div v-if="downloadProgress > 0 && downloadProgress < 100" class="download-progress">
+                        <div class="download-progress-bar" :style="{ width: downloadProgress + '%' }"></div>
+                        <span class="download-progress-text">{{ downloadProgress }}%</span>
+                    </div>
+                </div>
+            </template>
+            <template v-else-if="message.type.toLowerCase() === 'file'">
+                <div class="file-container" @click="downloadFile">
+                    <div class="file-icon">
+                        <FileIcon />
+                    </div>
+                    <div class="file-info">
+                        <div class="file-name">{{ fileMetadata?.fileName || 'Unknown file' }}</div>
+                        <div class="file-size">{{ fileMetadata ? formatFileSize(fileMetadata.size) : '' }}</div>
+                    </div>
+                    <div class="file-download-icon">
+                        <DownloadIcon />
+                    </div>
+                    <!-- 下载进度 -->
+                    <div v-if="downloadProgress > 0 && downloadProgress < 100" class="file-download-progress">
+                        <div class="file-download-bar" :style="{ width: downloadProgress + '%' }"></div>
+                    </div>
+                </div>
+            </template>
         </div>
 
         <!-- Metadata -->
@@ -66,6 +108,11 @@ import EditIcon from './icons/EditIcon.vue';
 import DeleteIcon from './icons/DeleteIcon.vue';
 import CopyIcon from './icons/CopyIcon.vue';
 import DownloadIcon from './icons/DownloadIcon.vue';
+import PlayIcon from './icons/PlayIcon.vue';
+import FileIcon from './icons/FileIcon.vue';
+import { downloadFile as downloadFileApi } from '@/services/api';
+import { formatFileSize, formatDuration } from '@/utils/helpers';
+import type { VideoMetadata, FileMetadata } from '@/types';
 
 defineOptions({
     inheritAttrs: false
@@ -86,6 +133,21 @@ const imagePlaceholder = ref<string | null>(null);
 const imageMetadata = ref<{ width: number; height: number; } | null>(null);
 const viewingImageUrl = ref<string | null>(null);
 const imageViewerVisible = ref(false);
+
+// Video state
+const videoUrl = ref<string | null>(null);
+const videoThumbnailUrl = ref<string | null>(null);
+const videoPlaceholder = ref<string | null>(null);
+const videoMetadata = ref<VideoMetadata | null>(null);
+const showVideoPlayer = ref(false);
+const videoPlayer = ref<HTMLVideoElement | null>(null);
+const isDownloading = ref(false);
+
+// File state
+const fileMetadata = ref<FileMetadata | null>(null);
+
+// Download progress
+const downloadProgress = ref(0);
 
 // Context menu state
 const contextMenuVisible = ref(false);
@@ -124,14 +186,20 @@ const isReplyToImage = computed(() =>
 const contextMenuItems = computed<ContextMenuItem[]>(() =>
 {
     const items: ContextMenuItem[] = [];
-    // Add reply option for both text and image messages
+    const msgType = props.message.type.toLowerCase();
+    
+    // Add reply option for all message types
     items.push({ id: 'reply', label: 'Reply', icon: ReplyIcon });
-    if (props.message.type.toLowerCase() === 'text')
+    
+    if (msgType === 'text')
         items.push({ id: 'copy', label: 'Copy', icon: CopyIcon });
-    if (props.message.type.toLowerCase() === 'image')
+    
+    if (msgType === 'image' || msgType === 'video' || msgType === 'file')
         items.push({ id: 'download', label: 'Download', icon: DownloadIcon });
-    if (isMe.value && props.message.type.toLowerCase() === 'text')
+    
+    if (isMe.value && msgType === 'text')
         items.push({ id: 'edit', label: 'Edit', icon: EditIcon });
+    
     if (isMe.value)
         items.push({ id: 'delete', label: 'Delete', icon: DeleteIcon });
 
@@ -202,6 +270,8 @@ function handleTouchMove(event: TouchEvent)
 
 async function handleMenuSelect(item: ContextMenuItem)
 {
+    const msgType = props.message.type.toLowerCase();
+    
     switch (item.id)
     {
         case 'reply':
@@ -211,7 +281,12 @@ async function handleMenuSelect(item: ContextMenuItem)
             await copyMessage();
             break;
         case 'download':
-            await downloadImage();
+            if (msgType === 'image')
+                await downloadImage();
+            else if (msgType === 'video')
+                await downloadVideo();
+            else if (msgType === 'file')
+                await downloadFile();
             break;
         case 'edit':
             editModalVisible.value = true;
@@ -319,11 +394,13 @@ async function decryptMessage()
 
     try
     {
-        if (props.message.type.toLowerCase() === 'text')
+        const msgType = props.message.type.toLowerCase();
+        
+        if (msgType === 'text')
         {
             decryptedContent.value = await decryptMessageString(props.message.content, key);
         }
-        else if (props.message.type.toLowerCase() === 'image')
+        else if (msgType === 'image')
         {
             // 先解密元数据获取图片尺寸
             try
@@ -346,6 +423,46 @@ async function decryptMessage()
             const blob = new Blob([imageData]);
             imageUrl.value = URL.createObjectURL(blob);
         }
+        else if (msgType === 'video')
+        {
+            // 解密视频元数据
+            try
+            {
+                const metadata = JSON.parse(await decryptMessageString(props.message.content, key)) as VideoMetadata;
+                videoMetadata.value = metadata;
+                
+                // 创建占位图
+                if (metadata.width && metadata.height)
+                {
+                    videoPlaceholder.value = createPlaceholder(metadata.width, metadata.height);
+                }
+                
+                // 解密并显示缩略图
+                if (metadata.thumbnailBase64)
+                {
+                    const thumbnailBytes = Uint8Array.from(atob(metadata.thumbnailBase64), c => c.charCodeAt(0));
+                    const blob = new Blob([thumbnailBytes], { type: 'image/jpeg' });
+                    videoThumbnailUrl.value = URL.createObjectURL(blob);
+                }
+            }
+            catch (e)
+            {
+                console.error('Failed to parse video metadata', e);
+            }
+        }
+        else if (msgType === 'file')
+        {
+            // 解密文件元数据
+            try
+            {
+                const metadata = JSON.parse(await decryptMessageString(props.message.content, key)) as FileMetadata;
+                fileMetadata.value = metadata;
+            }
+            catch (e)
+            {
+                console.error('Failed to parse file metadata', e);
+            }
+        }
 
         // 同时解密引用消息内容
         if (props.message.replyTo)
@@ -363,7 +480,7 @@ async function decryptMessage()
 onMounted(decryptMessage);
 watch(() => ({ content: props.message.content, type: props.message.type, replyTo: props.message.replyTo }), decryptMessage);
 
-async function decryptReplyContent(replyTo: { content: string; type?: 'TEXT' | 'IMAGE'; senderId: number; senderName: string; }): Promise<string>
+async function decryptReplyContent(replyTo: { content: string; type?: 'TEXT' | 'IMAGE' | 'VIDEO' | 'FILE'; senderId: number; senderName: string; }): Promise<string>
 {
     if (!chatKey.value)
     {
@@ -375,10 +492,24 @@ async function decryptReplyContent(replyTo: { content: string; type?: 'TEXT' | '
         // 引用消息的内容是加密的，需要先解密
         const decrypted = await decryptMessageString(replyTo.content, chatKey.value);
 
-        // 如果有 type 字段且是图片，直接返回 "Image"
-        if (replyTo.type && replyTo.type.toLowerCase() === 'image')
+        // 如果有 type 字段，根据类型返回对应的显示文本
+        if (replyTo.type)
         {
-            return '📷 Image';
+            const msgType = replyTo.type.toLowerCase();
+            if (msgType === 'image') return '📷 Image';
+            if (msgType === 'video') return '🎬 Video';
+            if (msgType === 'file')
+            {
+                try
+                {
+                    const metadata = JSON.parse(decrypted);
+                    return `📎 ${metadata.fileName || 'File'}`;
+                }
+                catch
+                {
+                    return '📎 File';
+                }
+            }
         }
 
         // 如果没有 type 字段（旧数据），尝试通过解密后的内容判断
@@ -387,8 +518,10 @@ async function decryptReplyContent(replyTo: { content: string; type?: 'TEXT' | '
             const metadata = JSON.parse(decrypted);
             if (typeof metadata.width === 'number' && typeof metadata.height === 'number')
             {
+                if (metadata.duration !== undefined) return '🎬 Video';
                 return '📷 Image';
             }
+            if (metadata.fileName) return `📎 ${metadata.fileName}`;
         }
         catch
         {
@@ -464,6 +597,149 @@ async function isReplyContentImage(): Promise<boolean>
     catch
     {
         return false;
+    }
+}
+
+// Video methods
+function formatVideoDuration(seconds: number): string
+{
+    return formatDuration(seconds);
+}
+
+async function playVideo()
+{
+    if (videoUrl.value)
+    {
+        showVideoPlayer.value = true;
+        return;
+    }
+
+    // Prevent duplicate downloads
+    if (isDownloading.value)
+    {
+        return;
+    }
+
+    const key = chatKey.value;
+    if (!key)
+    {
+        chatStore.showToast('Key not available', 'error');
+        return;
+    }
+
+    try
+    {
+        isDownloading.value = true;
+        downloadProgress.value = 1;
+        
+        // 下载并解密视频
+        const base64 = await downloadFileApi(props.message.id, (loaded, total) =>
+        {
+            downloadProgress.value = Math.round((loaded / total) * 100);
+        });
+        
+        const videoData = await decryptMessageBytes(base64, key);
+        const blob = new Blob([videoData], { type: 'video/mp4' });
+        videoUrl.value = URL.createObjectURL(blob);
+        showVideoPlayer.value = true;
+        downloadProgress.value = 0;
+    }
+    catch (e)
+    {
+        console.error('Failed to load video', e);
+        chatStore.showToast('Failed to load video', 'error');
+        downloadProgress.value = 0;
+    }
+    finally
+    {
+        isDownloading.value = false;
+    }
+}
+
+function closeVideoPlayer()
+{
+    if (videoPlayer.value)
+    {
+        videoPlayer.value.pause();
+    }
+    showVideoPlayer.value = false;
+}
+
+function videoEnded()
+{
+    // Optional: auto close or loop
+}
+
+async function downloadVideo()
+{
+    if (!videoUrl.value)
+    {
+        await playVideo();
+    }
+    
+    if (videoUrl.value)
+    {
+        const a = document.createElement('a');
+        a.href = videoUrl.value;
+        a.download = videoMetadata.value?.fileName || `video_${props.message.id}.mp4`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        chatStore.showToast('Video downloaded', 'success');
+    }
+}
+
+async function downloadFile()
+{
+    // Prevent duplicate downloads
+    if (isDownloading.value)
+    {
+        return;
+    }
+
+    const key = chatKey.value;
+    if (!key)
+    {
+        chatStore.showToast('Key not available', 'error');
+        return;
+    }
+
+    try
+    {
+        isDownloading.value = true;
+        downloadProgress.value = 1;
+        
+        // 下载并解密文件
+        const base64 = await downloadFileApi(props.message.id, (loaded, total) =>
+        {
+            downloadProgress.value = Math.round((loaded / total) * 100);
+        });
+        
+        const fileData = await decryptMessageBytes(base64, key);
+        const mimeType = fileMetadata.value?.mimeType || 'application/octet-stream';
+        const blob = new Blob([fileData], { type: mimeType });
+        const url = URL.createObjectURL(blob);
+        
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileMetadata.value?.fileName || `file_${props.message.id}`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+        downloadProgress.value = 0;
+        chatStore.showToast('File downloaded', 'success');
+    }
+    catch (e)
+    {
+        console.error('Failed to download file', e);
+        chatStore.showToast('Failed to download file', 'error');
+        downloadProgress.value = 0;
+    }
+    finally
+    {
+        isDownloading.value = false;
     }
 }
 </script>
@@ -604,6 +880,230 @@ async function isReplyContentImage(): Promise<boolean>
     padding: 20px;
     text-align: center;
     color: var(--secondary-color);
+}
+
+/* Video styles */
+.video-container {
+    position: relative;
+}
+
+.video-thumbnail-wrapper {
+    position: relative;
+    cursor: pointer;
+    display: inline-block;
+}
+
+.video-thumbnail {
+    max-width: 100%;
+    max-height: 300px;
+    border-radius: 4px;
+    display: block;
+}
+
+.video-play-overlay {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 60px;
+    height: 60px;
+    background-color: rgba(0, 0, 0, 0.6);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    transition: background-color 0.2s;
+}
+
+.video-thumbnail-wrapper:hover .video-play-overlay {
+    background-color: rgba(0, 0, 0, 0.8);
+}
+
+.video-play-overlay svg {
+    width: 30px;
+    height: 30px;
+    margin-left: 4px;
+}
+
+.video-duration {
+    position: absolute;
+    bottom: 8px;
+    right: 8px;
+    background-color: rgba(0, 0, 0, 0.7);
+    color: white;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 12px;
+}
+
+.video-player-wrapper {
+    position: relative;
+}
+
+.video-player {
+    max-width: 100%;
+    max-height: 400px;
+    border-radius: 4px;
+}
+
+.video-close-btn {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background-color: var(--panel-bg);
+    border: 1px solid var(--border-color);
+    color: var(--text-color);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    line-height: 1;
+}
+
+.video-close-btn:hover {
+    background-color: var(--hover-color);
+}
+
+.loading-video {
+    padding: 20px;
+    text-align: center;
+    color: var(--secondary-color);
+}
+
+.download-progress {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background-color: rgba(0, 0, 0, 0.3);
+    border-radius: 0 0 4px 4px;
+    overflow: hidden;
+}
+
+.download-progress-bar {
+    height: 100%;
+    background-color: var(--primary-color);
+    transition: width 0.2s;
+}
+
+.message.sent .download-progress-bar {
+    background-color: rgba(255, 255, 255, 0.8);
+}
+
+.message.sent .download-progress {
+    background-color: rgba(255, 255, 255, 0.3);
+}
+
+.download-progress-text {
+    position: absolute;
+    top: -20px;
+    right: 8px;
+    font-size: 12px;
+    color: white;
+    background-color: rgba(0, 0, 0, 0.6);
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+
+/* File styles */
+.file-container {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    background-color: rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    position: relative;
+    min-width: 200px;
+}
+
+.message.sent .file-container {
+    background-color: rgba(255, 255, 255, 0.15);
+}
+
+.file-container:hover {
+    background-color: rgba(0, 0, 0, 0.15);
+}
+
+.message.sent .file-container:hover {
+    background-color: rgba(255, 255, 255, 0.25);
+}
+
+.file-icon {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--primary-color);
+    border-radius: 8px;
+    color: white;
+}
+
+.file-icon svg {
+    width: 24px;
+    height: 24px;
+}
+
+.file-info {
+    flex: 1;
+    overflow: hidden;
+}
+
+.file-name {
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 180px;
+}
+
+.file-size {
+    font-size: 0.85em;
+    opacity: 0.7;
+    margin-top: 2px;
+}
+
+.file-download-icon {
+    opacity: 0.6;
+}
+
+.file-download-icon svg {
+    width: 20px;
+    height: 20px;
+}
+
+.file-download-progress {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background-color: rgba(0, 0, 0, 0.1);
+    border-radius: 0 0 8px 8px;
+    overflow: hidden;
+}
+
+.file-download-bar {
+    height: 100%;
+    background-color: var(--primary-color);
+    transition: width 0.2s;
+}
+
+.message.sent .file-download-bar {
+    background-color: rgba(255, 255, 255, 0.8);
+}
+
+.message.sent .file-download-progress {
+    background-color: rgba(255, 255, 255, 0.3);
 }
 
 .meta {

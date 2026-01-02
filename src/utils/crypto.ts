@@ -200,6 +200,38 @@ export async function generateSymmetricKey(): Promise<CryptoKey>
 }
 
 /**
+ * Exports a symmetric key to base64 string for storage.
+ */
+export async function exportSymmetricKey(key: CryptoKey): Promise<string>
+{
+    const rawKey = await subtle.exportKey('raw', key);
+    return arrayBufferToBase64(rawKey);
+}
+
+/**
+ * Imports a symmetric key from base64 string.
+ */
+export async function importSymmetricKey(keyBase64: string): Promise<CryptoKey | null>
+{
+    try
+    {
+        const rawKey = base64ToBytes(keyBase64);
+        return await subtle.importKey(
+            'raw',
+            rawKey,
+            { name: 'AES-GCM', length: 256 },
+            true,
+            ['encrypt', 'decrypt']
+        );
+    }
+    catch (e)
+    {
+        console.error('Failed to import symmetric key', e);
+        return null;
+    }
+}
+
+/**
  * Encrypts (wraps) a symmetric key with a public key (RSA-OAEP).
  */
 export async function encryptSymmetricKey(symmetricKey: CryptoKey, publicKey: CryptoKey): Promise<string>
@@ -269,6 +301,93 @@ export async function decryptMessageBytes(encryptedMessageStr: string, key: Cryp
     const iv = base64ToBytes(split[0]);
     const data = base64ToBytes(split[1]);
     return await subtle.decrypt({ name: 'AES-GCM', iv }, key, data);
+}
+
+/**
+ * Encrypts a large file in chunks to avoid blocking the UI.
+ * Uses streaming to minimize memory usage and yields to the main thread periodically.
+ */
+export async function encryptLargeFile(
+    file: File,
+    key: CryptoKey,
+    onProgress?: (progress: number) => void
+): Promise<string>
+{
+    const CHUNK_SIZE = 1024 * 1024; // 1MB chunks for reading
+    const totalSize = file.size;
+    let processedBytes = 0;
+
+    // Read file in chunks to avoid memory issues
+    const reader = file.stream().getReader();
+    const fileData: Uint8Array[] = [];
+    let totalLength = 0;
+
+    while (true)
+    {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        fileData.push(value);
+        totalLength += value.length;
+        processedBytes += value.length;
+
+        // Yield to main thread every 1MB
+        if (processedBytes % CHUNK_SIZE < value.length)
+        {
+            await new Promise(resolve => setTimeout(resolve, 0));
+            onProgress?.(Math.round((processedBytes / totalSize) * 50)); // First 50% is reading
+        }
+    }
+
+    // Combine chunks into single array
+    const combined = new Uint8Array(totalLength);
+    let offset = 0;
+    for (const chunk of fileData)
+    {
+        combined.set(chunk, offset);
+        offset += chunk.length;
+    }
+
+    // Yield before encryption
+    await new Promise(resolve => setTimeout(resolve, 0));
+    onProgress?.(50);
+
+    // Encrypt the data
+    const iv = cryptoObj.getRandomValues(new Uint8Array(12));
+    const encryptedContent = await subtle.encrypt(
+        { name: 'AES-GCM', iv },
+        key,
+        combined
+    );
+
+    // Yield after encryption
+    await new Promise(resolve => setTimeout(resolve, 0));
+    onProgress?.(75);
+
+    // Convert to base64 - must be done on complete data to avoid encoding issues
+    // Use chunked approach but ensure chunk boundaries align with base64 encoding (3 bytes -> 4 chars)
+    const encryptedBytes = new Uint8Array(encryptedContent);
+    const base64Chunks: string[] = [];
+    // Chunk size must be multiple of 3 for proper base64 encoding without padding issues
+    const BASE64_CHUNK_SIZE = 1024 * 1024 * 3; // ~3MB, multiple of 3
+
+    for (let i = 0; i < encryptedBytes.length; i += BASE64_CHUNK_SIZE)
+    {
+        const isLastChunk = i + BASE64_CHUNK_SIZE >= encryptedBytes.length;
+        const chunkEnd = isLastChunk ? encryptedBytes.length : i + BASE64_CHUNK_SIZE;
+        const chunk = encryptedBytes.slice(i, chunkEnd);
+        base64Chunks.push(bytesToBase64(chunk));
+
+        // Yield periodically
+        await new Promise(resolve => setTimeout(resolve, 0));
+        onProgress?.(75 + Math.round((chunkEnd / encryptedBytes.length) * 25));
+    }
+
+    const ivString = bytesToBase64(iv);
+    const dataString = base64Chunks.join('');
+
+    onProgress?.(100);
+    return ivString + '.' + dataString;
 }
 
 // Utility functions

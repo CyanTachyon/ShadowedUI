@@ -31,7 +31,7 @@ export interface ReplyInfo
     content: string;
     senderId: number;
     senderName: string;
-    type: 'TEXT' | 'IMAGE';
+    type: 'TEXT' | 'IMAGE' | 'VIDEO' | 'FILE';
 }
 
 export interface Message
@@ -41,10 +41,59 @@ export interface Message
     senderId: number;
     senderName?: string;
     content: string;
-    type: 'TEXT' | 'IMAGE';
+    type: 'TEXT' | 'IMAGE' | 'VIDEO' | 'FILE';
     time: string;
     replyTo?: ReplyInfo;
     readAt?: number | null; // 已读时间戳，null或undefined表示未读
+}
+
+// 图片元数据
+export interface ImageMetadata
+{
+    width: number;
+    height: number;
+    size: number;
+}
+
+// 视频元数据
+export interface VideoMetadata
+{
+    width: number;
+    height: number;
+    duration: number;        // 视频时长（秒）
+    size: number;            // 文件大小（字节）
+    fileName?: string;       // 原始文件名
+    thumbnailBase64: string; // 缩略图 Base64
+}
+
+// 文件元数据
+export interface FileMetadata
+{
+    fileName: string;        // 原始文件名
+    size: number;            // 文件大小（字节）
+    mimeType?: string;       // MIME 类型
+}
+
+// 上传任务状态
+export type UploadStatus = 'pending' | 'uploading' | 'paused' | 'completed' | 'failed';
+
+// 上传任务
+export interface UploadTask
+{
+    id: string;                    // 唯一标识 (UUID)
+    chatId: number;
+    fileName: string;
+    fileType: 'IMAGE' | 'VIDEO' | 'FILE';
+    totalSize: number;
+    encryptedSize: number;         // 加密后总大小
+    chunkSize: number;
+    totalChunks: number;
+    uploadedChunks: number[];      // 已上传的分片索引
+    chatKeyJwk: string;            // 导出的聊天密钥（raw格式base64）
+    metadata: string;              // 加密后的元数据
+    serverUploadId?: string;       // 服务器返回的上传ID
+    createdAt: number;
+    status: UploadStatus;
 }
 
 export interface Broadcast
@@ -86,7 +135,7 @@ export interface Moment
 {
     messageId: number;
     content: string;
-    type: 'TEXT' | 'IMAGE';
+    type: 'TEXT' | 'IMAGE' | 'VIDEO' | 'FILE';
     ownerId: number;
     ownerName: string;
     time: number;
@@ -102,7 +151,7 @@ export interface MomentComment
     senderId: number;
     senderName: string;
     time: number;
-    type: 'TEXT' | 'IMAGE';
+    type: 'TEXT' | 'IMAGE' | 'VIDEO' | 'FILE';
 }
 
 export interface MomentPermission
