@@ -33,7 +33,10 @@
         <div v-else class="moments-list">
             <div v-for="moment in moments" :key="moment.messageId" class="moment-item" @contextmenu.prevent="handleContextMenu($event, moment)">
                 <div class="moment-header">
-                    <img :src="getAvatarUrl(moment.ownerId)" class="avatar clickable" alt="avatar" @click="openUserProfile(moment.ownerId)" />
+                    <div class="moment-avatar-wrapper">
+                        <img :src="getAvatarUrl(moment.ownerId)" class="avatar clickable" alt="avatar" @click="openUserProfile(moment.ownerId)" />
+                        <DonorBadgeIcon v-if="moment.ownerIsDonor" class="donor-badge" />
+                    </div>
                     <div class="moment-info">
                         <span class="owner-name clickable" @click="openUserProfile(moment.ownerId)">{{ moment.ownerName }}</span>
                         <span class="moment-time">{{ formatTime(moment.time) }}</span>
@@ -64,7 +67,10 @@
                     </div>
                     <div v-else class="comments-list">
                         <div v-for="comment in getMomentComments(moment.messageId)" :key="comment.id" class="comment-item">
-                            <img :src="getAvatarUrl(comment.senderId)" class="comment-avatar clickable" alt="avatar" @click="openUserProfile(comment.senderId)" />
+                            <div class="comment-avatar-wrapper">
+                                <img :src="getAvatarUrl(comment.senderId)" class="comment-avatar clickable" alt="avatar" @click="openUserProfile(comment.senderId)" />
+                                <DonorBadgeIcon v-if="comment.senderIsDonor" class="comment-donor-badge" />
+                            </div>
                             <div class="comment-content">
                                 <span class="comment-sender clickable" @click="openUserProfile(comment.senderId)">{{ comment.senderName }}</span>
                                 <span class="comment-time">{{ formatTime(comment.time) }}</span>
@@ -130,6 +136,7 @@ import CommentInput from './CommentInput.vue';
 import ContextMenu, { type ContextMenuItem } from './ContextMenu.vue';
 import EditIcon from './icons/EditIcon.vue';
 import DeleteIcon from './icons/DeleteIcon.vue';
+import DonorBadgeIcon from './icons/DonorBadgeIcon.vue';
 
 interface DecryptedMoment extends Moment
 {
@@ -569,6 +576,7 @@ async function handleCommentAdded(data: { comment: any; })
             content: decryptedContent,
             senderId: data.comment.senderId,
             senderName: data.comment.senderName,
+            senderIsDonor: data.comment.senderIsDonor,
             time: data.comment.time,
             type: data.comment.type
         };
@@ -616,6 +624,7 @@ async function handleMomentComments(data: { momentMessageId: number; comments: a
             content: decryptedContent,
             senderId: c.senderId,
             senderName: c.senderName,
+            senderIsDonor: c.senderIsDonor,
             time: c.time,
             type: c.type
         };
@@ -783,6 +792,12 @@ watch(() => chatStore.isMomentsView, (newVal) =>
     margin-bottom: 10px;
 }
 
+.moment-avatar-wrapper {
+    position: relative;
+    width: 40px;
+    height: 40px;
+}
+
 .avatar {
     width: 40px;
     height: 40px;
@@ -797,6 +812,14 @@ watch(() => chatStore.isMomentsView, (newVal) =>
 
 .avatar.clickable:hover {
     opacity: 0.8;
+}
+
+.donor-badge {
+    position: absolute;
+    bottom: -2px;
+    right: -2px;
+    width: 18px;
+    height: 18px;
 }
 
 .moment-info {
@@ -993,12 +1016,26 @@ watch(() => chatStore.isMomentsView, (newVal) =>
     border-radius: 6px;
 }
 
+.comment-avatar-wrapper {
+    position: relative;
+    width: 28px;
+    height: 28px;
+}
+
 .comment-avatar {
     width: 28px;
     height: 28px;
     border-radius: 50%;
     object-fit: cover;
     flex-shrink: 0;
+}
+
+.comment-donor-badge {
+    position: absolute;
+    bottom: -2px;
+    right: -2px;
+    width: 14px;
+    height: 14px;
 }
 
 .comment-content {

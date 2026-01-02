@@ -10,8 +10,10 @@
                 </div>
             </template>
             <template v-else>
-                <img v-if="otherId" :src="getAvatarUrl(otherId)" class="user-avatar" alt="avatar" loading="lazy" @error="handleImageError" />
-                <div v-else class="chat-icon initial">{{ initial }}</div>
+                <div class="user-avatar-wrapper">
+                    <img v-if="otherId" :src="getAvatarUrl(otherId)" class="user-avatar" alt="avatar" loading="lazy" @error="handleImageError" />
+                    <DonorBadgeIcon v-if="otherId && chat.otherUserIsDonor" class="donor-badge" />
+                </div>
             </template>
             <div v-if="unreadCount > 0" class="unread-badge" :class="{ 'do-not-disturb': doNotDisturb }">
                 {{ unreadCount > 99 ? '…' : unreadCount }}
@@ -30,6 +32,7 @@
 import { computed } from 'vue';
 import type { Chat } from '@/types';
 import { getAvatarUrl } from '@/utils/helpers';
+import DonorBadgeIcon from './icons/DonorBadgeIcon.vue';
 
 const props = defineProps<{
     chat: Chat;
@@ -43,12 +46,6 @@ defineEmits<{
 const isGroup = computed(() => !props.chat.isPrivate);
 
 const displayName = computed(() => props.chat.name || 'Chat ' + props.chat.chatId);
-
-const initial = computed(() =>
-{
-    const name = displayName.value;
-    return name && name.length > 0 ? name[0].toUpperCase() : '?';
-});
 
 const otherId = computed(() =>
 {
@@ -112,17 +109,16 @@ function handleImageError(e: Event)
     border-radius: 10px;
 }
 
-.chat-icon.initial {
-    background: var(--primary-color);
-    color: white;
-    border-radius: 50%;
-    font-size: 1.2rem;
-}
-
 .group-icon-svg {
     width: 24px;
     height: 24px;
     fill: var(--primary-color);
+}
+
+.user-avatar-wrapper {
+    position: relative;
+    width: 100%;
+    height: 100%;
 }
 
 .user-avatar {
@@ -131,6 +127,14 @@ function handleImageError(e: Event)
     border-radius: 50%;
     object-fit: cover;
     background-color: var(--border-color);
+}
+
+.donor-badge {
+    position: absolute;
+    bottom: -2px;
+    right: -2px;
+    width: 18px;
+    height: 18px;
 }
 
 .unread-badge {

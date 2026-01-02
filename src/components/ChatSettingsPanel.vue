@@ -34,7 +34,10 @@
 
                 <div class="member-list">
                     <div v-for="member in members.filter(m => m.id !== myId || !isPrivate)" :key="member.id" class="member-item">
-                        <img :src="getAvatarUrl(member.id)" class="member-avatar" alt="avatar" @click="openUserProfile(member.id)" />
+                        <div class="member-avatar-wrapper">
+                            <img :src="getAvatarUrl(member.id)" class="member-avatar" alt="avatar" @click="openUserProfile(member.id)" />
+                            <DonorBadgeIcon v-if="member.isDonor" class="member-donor-badge" />
+                        </div>
                         <span class="member-name" @click="openUserProfile(member.id)">
                             {{ member.username }}
                             <span v-if="member.id === ownerId" class="owner-badge">(Owner)</span>
@@ -110,6 +113,7 @@ import
     } from '@/utils/crypto';
 import type { ChatMember, MomentPermission } from '@/types';
 import CloseIcon from './icons/CloseIcon.vue';
+import DonorBadgeIcon from './icons/DonorBadgeIcon.vue';
 import SelectDropdown from './SelectDropdown/SelectDropdown.vue';
 
 const chatStore = useChatStore();
@@ -585,12 +589,26 @@ onMounted(() =>
     font-size: 0.9em;
 }
 
+.member-avatar-wrapper {
+    position: relative;
+    width: 32px;
+    height: 32px;
+}
+
 .member-avatar {
     width: 32px;
     height: 32px;
     border-radius: 50%;
     object-fit: cover;
     cursor: pointer;
+}
+
+.member-donor-badge {
+    position: absolute;
+    bottom: -2px;
+    right: -2px;
+    width: 16px;
+    height: 16px;
 }
 
 .member-name {

@@ -346,7 +346,7 @@ export async function fetchMessageFile(messageId: number): Promise<string>
     return res.text();
 }
 
-export async function fetchUserInfo(userId: number): Promise<{ id: number; username: string; signature: string | null; } | null>
+export async function fetchUserInfo(userId: number): Promise<{ id: number; username: string; signature: string | null; isDonor: boolean; } | null>
 {
     try
     {

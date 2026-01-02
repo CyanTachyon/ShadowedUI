@@ -66,6 +66,28 @@
                     </div>
                 </div>
 
+                <!-- Donors Section -->
+                <div v-if="projectInfo.donors && projectInfo.donors.length > 0" class="detail-section">
+                    <h2 class="section-title">Donors</h2>
+                    <div class="donors-note">
+                        No particular order given
+                    </div>
+                    <div class="donors-container">
+                        <div
+                            v-for="donor in projectInfo.donors"
+                            :key="getUserId(donor.id)"
+                            class="donor-item"
+                            @click="openUserProfile(donor)"
+                        >
+                            <div class="donor-avatar-wrapper">
+                                <img :src="getAvatarUrl(getUserId(donor.id))" :alt="donor.username" class="donor-avatar" />
+                                <DonorBadgeIcon class="donor-badge" />
+                            </div>
+                            <div class="donor-username">{{ donor.username }}</div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="action-section">
                     <button class="action-button secondary" @click="goBack">
                         <ArrowLeftIcon />
@@ -88,9 +110,12 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { fetchProjectInfo } from '@/services/api';
+import { useUIStore } from '@/stores';
 import type { ProjectInfo } from '@/types';
 import ArrowLeftIcon from './icons/ArrowLeftIcon.vue';
+import DonorBadgeIcon from './icons/DonorBadgeIcon.vue';
 
+const uiStore = useUIStore();
 const loading = ref(true);
 const projectInfo = ref<ProjectInfo | null>(null);
 
@@ -118,6 +143,22 @@ async function loadProjectInfo()
 function goBack()
 {
     history.back();
+}
+
+function getUserId(userId: number | { value: number }): number
+{
+    return typeof userId === 'object' ? userId.value : userId;
+}
+
+function getAvatarUrl(userId: number): string
+{
+    return `/api/user/${userId}/avatar`;
+}
+
+function openUserProfile(user: any)
+{
+    const uid = getUserId(user.id);
+    uiStore.navigateToProfile(uid);
 }
 </script>
 
@@ -231,6 +272,67 @@ function goBack()
     object-fit: contain;
     background-color: var(--input-bg);
     border: 1px solid var(--border-color);
+}
+
+.donors-note {
+    text-align: center;
+    color: var(--secondary-color);
+    font-size: 14px;
+    font-style: italic;
+    margin-bottom: 16px;
+}
+
+.donors-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    justify-content: center;
+}
+
+.donor-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 12px;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.donor-item:hover {
+    background-color: var(--hover-bg);
+}
+
+.donor-avatar-wrapper {
+    position: relative;
+}
+
+.donor-avatar {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid var(--border-color);
+}
+
+.donor-badge {
+    position: absolute;
+    bottom: -2px;
+    right: -2px;
+    width: 22px;
+    height: 22px;
+}
+
+.donor-username {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-color);
+    text-align: center;
+    max-width: 80px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .action-section {

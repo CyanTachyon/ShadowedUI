@@ -3,7 +3,10 @@
         <!-- Sender info for group chats -->
         <template v-if="showSender">
             <div class="message-sender" @click="openUserProfile">{{ message.senderName || `User ${message.senderId}` }}</div>
-            <img :src="getAvatarUrl(message.senderId)" class="sender-avatar" alt="avatar" loading="lazy" @click="openUserProfile" />
+            <div class="sender-avatar-wrapper">
+                <img :src="getAvatarUrl(message.senderId)" class="sender-avatar" alt="avatar" loading="lazy" @click="openUserProfile" />
+                <DonorBadgeIcon v-if="message.senderIsDonor" class="donor-badge" />
+            </div>
         </template>
 
         <!-- Message content -->
@@ -110,6 +113,7 @@ import CopyIcon from './icons/CopyIcon.vue';
 import DownloadIcon from './icons/DownloadIcon.vue';
 import PlayIcon from './icons/PlayIcon.vue';
 import FileIcon from './icons/FileIcon.vue';
+import DonorBadgeIcon from './icons/DonorBadgeIcon.vue';
 import { downloadFile as downloadFileApi } from '@/services/api';
 import { formatFileSize, formatDuration } from '@/utils/helpers';
 import type { VideoMetadata, FileMetadata } from '@/types';
@@ -778,15 +782,28 @@ async function downloadFile()
     cursor: pointer;
 }
 
-.sender-avatar {
+.sender-avatar-wrapper {
     position: absolute;
     top: 0;
     left: -40px;
     width: 32px;
     height: 32px;
+}
+
+.sender-avatar {
+    width: 32px;
+    height: 32px;
     border-radius: 50%;
     object-fit: cover;
     cursor: pointer;
+}
+
+.donor-badge {
+    position: absolute;
+    bottom: -3px;
+    right: -3px;
+    width: 18px;
+    height: 18px;
 }
 
 .content {

@@ -534,14 +534,17 @@ export const useChatStore = defineStore('chat', () =>
     }
 
     // 直接打开设置面板（不修改历史，用于 popstate 处理）
-    function openSettingsPanel(): void
+    function openSettingsPanel(chatId?: number): void
     {
         const uiStore = useUIStore();
         showSettingsPanel.value = true;
         uiStore.setViewState('settings');
-        if (currentChatId.value)
+        
+        const targetChatId = chatId ?? currentChatId.value;
+        if (targetChatId)
         {
-            wsService.sendPacket('get_chat_details', { chatId: currentChatId.value });
+            currentChatId.value = targetChatId;
+            wsService.sendPacket('get_chat_details', { chatId: targetChatId });
         }
     }
 

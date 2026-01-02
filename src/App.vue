@@ -201,6 +201,14 @@ function handlePopState(event: PopStateEvent)
             uiStore.setViewState('about');
         }
     }
+    else if (state.view === 'profile')
+    {
+        if (uiStore.viewState !== 'profile')
+        {
+            uiStore.profileUserId = state.userId;
+            uiStore.setViewState('profile');
+        }
+    }
     // 处理从 mine 返回的情况
     else if ((!state || state.view === 'list') && (window as any).minePreviousState)
     {
@@ -230,11 +238,10 @@ function handlePopState(event: PopStateEvent)
     }
     else if (state.view === 'settings')
     {
-        if (!chatStore.showSettingsPanel)
-        {
-            // 直接打开设置面板，不修改历史
-            chatStore.openSettingsPanel();
-        }
+        // 从 profile 或其他页面返回到 settings
+        uiStore.profileUserId = null;
+        // 直接打开设置面板，不修改历史
+        chatStore.openSettingsPanel(state.chatId);
     }
 }
 

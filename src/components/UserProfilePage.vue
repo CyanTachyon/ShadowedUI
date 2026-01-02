@@ -4,9 +4,7 @@
             <div class="profile-header-section">
                 <div class="avatar-container">
                     <img v-if="userId" :src="getAvatarUrl(userId)" class="profile-avatar" alt="avatar" />
-                </div>
-                <div class="profile-info">
-                    <h1 class="profile-username">{{ user?.username || 'Loading...' }}</h1>
+                        <DonorBadgeIcon v-if="user?.isDonor" class="profile-donor-badge" />
                     <div v-if="user?.signature" class="profile-signature">{{ user.signature }}</div>
                     <div class="profile-user-id">ID: {{ userId }}</div>
                 </div>
@@ -77,6 +75,7 @@ import { getAvatarUrl } from '@/utils/helpers';
 import { fetchUserInfo } from '@/services/api';
 import { encryptSymmetricKey, decryptSymmetricKey, importPublicKey } from '@/utils/crypto';
 import type { MomentPermission } from '@/types';
+import DonorBadgeIcon from './icons/DonorBadgeIcon.vue';
 import MessageIcon from './icons/MessageIcon.vue';
 import ArrowLeftIcon from './icons/ArrowLeftIcon.vue';
 
@@ -85,7 +84,7 @@ const uiStore = useUIStore();
 const userStore = useUserStore();
 
 const loading = ref(true);
-const user = ref<{ id: number; username: string; signature: string | null; } | null>(null);
+const user = ref<{ id: number; username: string; signature: string | null; isDonor?: boolean; } | null>(null);
 const momentPermission = ref<MomentPermission | null>(null);
 const loadingPermission = ref(false);
 
@@ -385,7 +384,7 @@ const handleMomentPermissionUpdated = (data: { friendId: number; canView: boolea
 
 function goBack()
 {
-    uiStore.setViewState('chat');
+    history.back();
 }
 </script>
 
@@ -415,6 +414,7 @@ function goBack()
 .avatar-container {
     display: inline-block;
     margin-bottom: 16px;
+    position: relative;
 }
 
 .profile-avatar {
@@ -424,6 +424,14 @@ function goBack()
     object-fit: cover;
     border: 4px solid var(--accent-color);
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+
+.profile-donor-badge {
+    position: absolute;
+    top: 90px;
+    right: 0px;
+    width: 32px;
+    height: 32px;
 }
 
 .profile-info {

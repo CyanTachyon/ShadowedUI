@@ -9,6 +9,7 @@ export interface User
     publicKey?: string;
     privateKey?: string;
     signature?: string;
+    isDonor?: boolean;
 }
 
 export interface Chat
@@ -23,6 +24,7 @@ export interface Chat
     ownerId?: number;
     doNotDisturb: boolean;
     burnTime?: number | null; // 阅后即焚时间（毫秒），null或undefined表示关闭
+    otherUserIsDonor?: boolean; // 私聊对方是否是捐赠者（仅私聊有效）
 }
 
 export interface ReplyInfo
@@ -40,6 +42,7 @@ export interface Message
     chatId: number;
     senderId: number;
     senderName?: string;
+    senderIsDonor?: boolean;
     content: string;
     type: 'TEXT' | 'IMAGE' | 'VIDEO' | 'FILE';
     time: string;
@@ -104,6 +107,7 @@ export interface Broadcast
     content: string;
     time: string;
     system: boolean;
+    senderIsDonor?: boolean;
 }
 
 export interface ChatMember
@@ -111,6 +115,7 @@ export interface ChatMember
     id: number;
     username: string;
     signature?: string;
+    isDonor?: boolean;
 }
 
 export interface ChatDetails
@@ -140,6 +145,7 @@ export interface Moment
     ownerName: string;
     time: number;
     key: string;
+    ownerIsDonor?: boolean;
     comments?: MomentComment[];
     commentCount?: number;
 }
@@ -152,6 +158,7 @@ export interface MomentComment
     senderName: string;
     time: number;
     type: 'TEXT' | 'IMAGE' | 'VIDEO' | 'FILE';
+    senderIsDonor?: boolean;
 }
 
 export interface MomentPermission
@@ -188,4 +195,5 @@ export interface ProjectInfo
         wechatQrCode: string | null;
         alipayQrCode: string | null;
     };
+    donors: User[];
 }

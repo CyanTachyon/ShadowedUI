@@ -1,7 +1,10 @@
 <template>
     <div :class="['broadcast-message', broadcastClass]">
         <div class="header">
-            <img v-if="showAvatar" :src="getAvatarUrl(broadcast.senderId!)" class="broadcast-avatar" alt="avatar" loading="lazy" @click="handleSenderClick" />
+            <div v-if="showAvatar" class="broadcast-avatar-wrapper">
+                <img :src="getAvatarUrl(broadcast.senderId!)" class="broadcast-avatar" alt="avatar" loading="lazy" @click="handleSenderClick" />
+                <DonorBadgeIcon v-if="broadcast.senderIsDonor" class="donor-badge" />
+            </div>
             <div :class="['broadcast-sender', senderClass]" :style="{ cursor: isClickable ? 'pointer' : 'default' }" @click="handleSenderClick">
                 {{ senderDisplay }}
             </div>
@@ -16,6 +19,7 @@ import { computed } from 'vue';
 import type { Broadcast } from '@/types';
 import { useUserStore, useUIStore } from '@/stores';
 import { getAvatarUrl, formatDate, getUserId } from '@/utils/helpers';
+import DonorBadgeIcon from './icons/DonorBadgeIcon.vue';
 
 const props = defineProps<{
     broadcast: Broadcast;
@@ -111,13 +115,27 @@ function handleSenderClick()
     align-items: center;
 }
 
+.broadcast-avatar-wrapper {
+    position: relative;
+    width: 32px;
+    height: 32px;
+    margin-right: 10px;
+}
+
 .broadcast-avatar {
     width: 32px;
     height: 32px;
     border-radius: 50%;
-    margin-right: 10px;
     object-fit: cover;
     cursor: pointer;
+}
+
+.donor-badge {
+    position: absolute;
+    bottom: -2px;
+    right: -2px;
+    width: 16px;
+    height: 16px;
 }
 
 .broadcast-sender {

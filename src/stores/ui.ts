@@ -87,6 +87,19 @@ export const useUIStore = defineStore('ui', () =>
     {
         profileUserId.value = userId;
         setViewState('profile');
+
+        // 检查当前历史状态，决定是 push 还是 replace
+        const currentState = history.state;
+        if (currentState?.view === 'profile')
+        {
+            // 已经在个人主页，替换当前状态
+            history.replaceState({ view: 'profile', userId }, '', '');
+        }
+        else
+        {
+            // 从其他页面进入个人主页，压入新状态
+            history.pushState({ view: 'profile', userId }, '', '');
+        }
     }
 
     function setChatBackground(imageData: string | null): void
