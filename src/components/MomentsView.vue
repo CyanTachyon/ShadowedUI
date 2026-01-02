@@ -66,7 +66,7 @@
                         No comments yet
                     </div>
                     <div v-else class="comments-list">
-                        <div v-for="comment in getMomentComments(moment.messageId)" :key="comment.id" class="comment-item">
+                        <div v-for="comment in getMomentComments(moment.messageId)" :key="comment.id" class="comment-item" @contextmenu.prevent="handleCommentContextMenu($event, moment.messageId, comment)">
                             <div class="comment-avatar-wrapper">
                                 <img :src="getAvatarUrl(comment.senderId)" class="comment-avatar clickable" alt="avatar" @click="openUserProfile(comment.senderId)" />
                                 <DonorBadgeIcon v-if="comment.senderIsDonor" class="comment-donor-badge" />
@@ -108,16 +108,29 @@
         <!-- Context Menu -->
         <ContextMenu :visible="contextMenuVisible" :x="contextMenuX" :y="contextMenuY" :items="contextMenuItems" @close="contextMenuVisible = false" @select="handleMenuSelect" />
         
-        <!-- Edit Moment Modal -->
-        <EditMomentModal :visible="showEditModal" :moment="selectedMoment" @close="showEditModal = false" />
+        <!-- Comment Context Menu -->
+        <ContextMenu :visible="commentContextMenuVisible" :x="commentContextMenuX" :y="commentContextMenuY" :items="commentContextMenuItems" @close="commentContextMenuVisible = false" @select="handleMenuSelect" />
         
-        <!-- Delete Moment Modal -->
-        <DeleteMomentModal :visible="showDeleteModal" :moment="selectedMoment" @close="showDeleteModal = false" />
+        <!-- Edit Moment/Comment Modal -->
+        <EditMomentModal 
+            :visible="showEditModal" 
+            :moment="selectedComment?.momentId ? moments.find(m => m.messageId === selectedComment?.momentId) || null : selectedMoment" 
+            :comment="selectedComment?.comment || null" 
+            @close="showEditModal = false" 
+        />
+        
+        <!-- Delete Moment/Comment Modal -->
+        <DeleteMomentModal 
+            :visible="showDeleteModal" 
+            :moment="selectedComment?.momentId ? moments.find(m => m.messageId === selectedComment?.momentId) || null : selectedMoment" 
+            :comment="selectedComment?.comment || null" 
+            @close="showDeleteModal = false" 
+        />
     </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch, computed } from 'vue';
+import { ref, onMounted, watch, computed, reactive } from 'vue';
 import { useChatStore, useUserStore, useUIStore } from '@/stores';
 import { wsService } from '@/services/websocket';
 import { getAvatarUrl, getUserId } from '@/utils/helpers';
@@ -162,13 +175,19 @@ const contextMenuX = ref(0);
 const contextMenuY = ref(0);
 const selectedMoment = ref<DecryptedMoment | null>(null);
 
+// Comment context menu state
+const commentContextMenuVisible = ref(false);
+const commentContextMenuX = ref(0);
+const commentContextMenuY = ref(0);
+const selectedComment = ref<{ momentId: number; comment: MomentComment } | null>(null);
+
 // Modals state
 const showEditModal = ref(false);
 const showDeleteModal = ref(false);
 
 // Comments state
 const showComments = ref<Set<number>>(new Set());
-const comments = ref<Map<number, MomentComment[]>>(new Map());
+const comments = reactive<Map<number, MomentComment[]>>(new Map());
 
 // View mode: null = viewing all moments, number = viewing specific user's moments
 const viewingUserId = computed(() => chatStore.viewingUserMomentsId);
@@ -190,6 +209,14 @@ const isMomentOwner = computed(() =>
     if (!userStore.currentUser || !selectedMoment.value) return false;
     const currentUserId = getUserId(userStore.currentUser.id);
     return selectedMoment.value.ownerId === currentUserId;
+});
+
+// Check if current user is the comment owner
+const isCommentOwner = computed(() =>
+{
+    if (!userStore.currentUser || !selectedComment.value) return false;
+    const currentUserId = getUserId(userStore.currentUser.id);
+    return selectedComment.value.comment.senderId === currentUserId;
 });
 
 // Cache for decrypted keys
@@ -221,6 +248,21 @@ const contextMenuItems = computed<ContextMenuItem[]>(() =>
         items.push({ id: 'edit', label: 'Edit', icon: EditIcon });
     }
     if (isMomentOwner.value)
+    {
+        items.push({ id: 'delete', label: 'Delete', icon: DeleteIcon });
+    }
+    return items;
+});
+
+// Comment context menu items
+const commentContextMenuItems = computed<ContextMenuItem[]>(() =>
+{
+    const items: ContextMenuItem[] = [];
+    if (isCommentOwner.value && selectedComment.value?.comment.type === 'TEXT')
+    {
+        items.push({ id: 'edit', label: 'Edit', icon: EditIcon });
+    }
+    if (isCommentOwner.value)
     {
         items.push({ id: 'delete', label: 'Delete', icon: DeleteIcon });
     }
@@ -439,10 +481,8 @@ async function handleUserMomentsList(data: { userId: number; username: string; m
 
 function goBackToAllMoments()
 {
-    chatStore.viewingUserMomentsId = null;
-    currentViewingUserName.value = '';
-    moments.value = [];
-    loadMoments();
+    // 使用浏览器历史返回，由 popstate 处理器恢复状态
+    history.back();
 }
 
 function openUserProfile(ownerId: number)
@@ -461,6 +501,15 @@ function handleContextMenu(event: MouseEvent, moment: DecryptedMoment)
     contextMenuY.value = event.clientY;
     // Only show context menu if there are items
     contextMenuVisible.value = contextMenuItems.value.length > 0;
+}
+
+function handleCommentContextMenu(event: MouseEvent, momentId: number, comment: MomentComment)
+{
+    event.stopPropagation(); // Prevent bubbling to moment's context menu
+    selectedComment.value = { momentId, comment };
+    commentContextMenuX.value = event.clientX;
+    commentContextMenuY.value = event.clientY;
+    commentContextMenuVisible.value = commentContextMenuItems.value.length > 0;
 }
 
 function handleMenuSelect(item: ContextMenuItem)
@@ -508,12 +557,13 @@ async function loadMomentComments(momentId: number)
 
 function getMomentComments(momentId: number): MomentComment[]
 {
-    return comments.value.get(momentId) || [];
+    return comments.get(momentId) || [];
 }
 
-// Edit moment handler
-function handleMomentEdited(data: { messageId: number; content: string; })
+// Edit moment or comment handler
+async function handleMomentEdited(data: { messageId: number; content: string; })
 {
+    // First check if it's a moment
     const moment = moments.value.find(m => m.messageId === data.messageId);
     if (moment)
     {
@@ -524,16 +574,66 @@ function handleMomentEdited(data: { messageId: number; content: string; })
         {
             moment.decryptedContent = decrypted.decryptedContent;
         });
+        return;
+    }
+
+    // If not a moment, check if it's a comment
+    for (const [momentId, momentComments] of comments.entries())
+    {
+        const commentIndex = momentComments.findIndex(c => c.id === data.messageId);
+        if (commentIndex !== -1)
+        {
+            // Found the comment - decrypt and update it
+            const parentMoment = moments.value.find(m => m.messageId === momentId);
+            if (!parentMoment) return;
+
+            const key = await getDecryptedKey(parentMoment.key);
+            if (!key) return;
+
+            try
+            {
+                const decryptedContent = await decryptMessageString(data.content, key);
+                const updatedComments = [...momentComments];
+                updatedComments[commentIndex] = {
+                    ...updatedComments[commentIndex],
+                    content: decryptedContent
+                };
+                comments.set(momentId, updatedComments);
+            }
+            catch (e)
+            {
+                console.error('Failed to decrypt updated comment:', e);
+            }
+            return;
+        }
     }
 }
 
-// Delete moment handler
+// Delete moment or comment handler
 function handleMomentDeleted(data: { messageId: number; })
 {
-    moments.value = moments.value.filter(m => m.messageId !== data.messageId);
-    comments.value.delete(data.messageId);
-    showComments.value.delete(data.messageId);
-    chatStore.showToast('Moment deleted', 'success');
+    // First check if it's a moment
+    const momentIndex = moments.value.findIndex(m => m.messageId === data.messageId);
+    if (momentIndex !== -1)
+    {
+        moments.value = moments.value.filter(m => m.messageId !== data.messageId);
+        comments.delete(data.messageId);
+        showComments.value.delete(data.messageId);
+        return;
+    }
+
+    // If not a moment, check if it's a comment
+    for (const [momentId, momentComments] of comments.entries())
+    {
+        const commentIndex = momentComments.findIndex(c => c.id === data.messageId);
+        if (commentIndex !== -1)
+        {
+            // Found the comment - remove it
+            const updatedComments = momentComments.filter(c => c.id !== data.messageId);
+            comments.set(momentId, updatedComments);
+            return;
+        }
+    }
 }
 
 // Comment added handler
@@ -582,8 +682,8 @@ async function handleCommentAdded(data: { comment: any; })
         };
         
         // Add comment to the moment's comments
-        const existingComments = comments.value.get(momentId) || [];
-        comments.value.set(momentId, [...existingComments, comment]);
+        const existingComments = comments.get(momentId) || [];
+        comments.set(momentId, [...existingComments, comment]);
     }
 }
 
@@ -630,7 +730,7 @@ async function handleMomentComments(data: { momentMessageId: number; comments: a
         };
     }));
     
-    comments.value.set(momentId, commentsList);
+    comments.set(momentId, commentsList);
 }
 
 function handleCommentSent()
@@ -667,6 +767,16 @@ watch(() => chatStore.isMomentsView, (newVal) =>
         {
             currentViewingUserName.value = '';
         }
+        loadMoments();
+    }
+});
+
+// Watch for viewing user changes
+watch(() => viewingUserId.value, (newUserId, oldUserId) =>
+{
+    if (chatStore.isMomentsView && newUserId !== oldUserId)
+    {
+        moments.value = [];
         loadMoments();
     }
 });
@@ -934,6 +1044,7 @@ watch(() => chatStore.isMomentsView, (newVal) =>
     resize: vertical;
     font-family: inherit;
     font-size: 0.95rem;
+    box-sizing: border-box;
 }
 
 .modal-actions {
@@ -988,7 +1099,7 @@ watch(() => chatStore.isMomentsView, (newVal) =>
 }
 
 .comments-section {
-    padding-left: 50px;
+    padding-left: 10px;
     margin-top: 10px;
     border-top: 1px solid var(--border-color);
     padding-top: 10px;

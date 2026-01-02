@@ -152,6 +152,13 @@ function handlePopState(event: PopStateEvent)
 
         uiStore.setViewState('chat');
 
+        // 清除 moments 视图状态（除非正在恢复 moments）
+        if (state.chatId !== 'moments')
+        {
+            chatStore.isMomentsView = false;
+            chatStore.viewingUserMomentsId = null;
+        }
+
         if (state.chatId === 'broadcasts')
         {
             if (!chatStore.isBroadcastView)
@@ -162,10 +169,10 @@ function handlePopState(event: PopStateEvent)
         }
         else if (state.chatId === 'moments')
         {
-            if (!chatStore.isMomentsView || chatStore.viewingUserMomentsId !== null)
+            if (!chatStore.isMomentsView || (chatStore.viewingUserMomentsId !== state.viewingUserId))
             {
                 // 直接恢复 moments 视图状态，不修改历史
-                chatStore.restoreMomentsView();
+                chatStore.restoreMomentsView(state.viewingUserId);
             }
         }
         else if (state.chatId && state.chatId !== chatStore.currentChatId)

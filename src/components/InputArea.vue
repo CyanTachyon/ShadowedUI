@@ -15,7 +15,7 @@
         </div>
 
         <div class="input-area-inner">
-            <textarea id="message-in" v-model="messageText" :placeholder="placeholder" :disabled="!canSend" @keydown="handleKeyDown" @compositionstart="isComposing = true" @compositionend="isComposing = false"></textarea>
+            <textarea id="message-in" v-model="messageText" :placeholder="placeholder" :disabled="!canSend" @keydown="handleKeyDown" @paste="handlePaste" @compositionstart="isComposing = true" @compositionend="isComposing = false"></textarea>
 
             <button v-if="chatStore.isBroadcastView" :class="['anon-btn', { active: isAnonymous }]" @click="isAnonymous = !isAnonymous">
                 anon
@@ -605,6 +605,84 @@ async function cancelCurrentUpload()
         currentUploadTask.value = null;
         isUploading.value = false;
         chatStore.showToast('Upload cancelled', 'info');
+    }
+}
+
+function handlePaste(e: ClipboardEvent)
+{
+    if (!canSend.value || isUploading.value)
+    {
+        e.preventDefault();
+        return;
+    }
+
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    // Check if any file is pasted
+    const files: File[] = [];
+    for (let i = 0; i < items.length; i++)
+    {
+        const item = items[i];
+        if (item.kind === 'file')
+        {
+            const file = item.getAsFile();
+            if (file)
+            {
+                files.push(file);
+            }
+        }
+    }
+
+    if (files.length === 0)
+    {
+        // Allow normal text paste
+        return;
+    }
+
+    // Prevent default paste behavior for files
+    e.preventDefault();
+
+    // Process each pasted file
+    files.forEach(file => {
+        processPastedFile(file);
+    });
+}
+
+function processPastedFile(file: File)
+{
+    // Determine file type based on MIME type
+    const mimeType = file.type.toLowerCase();
+
+    if (mimeType.startsWith('image/'))
+    {
+        // Handle image
+        if (file.size > MAX_IMAGE_SIZE)
+        {
+            chatStore.showToast(`Image too large! Max size is ${formatFileSize(MAX_IMAGE_SIZE)}`, 'error');
+            return;
+        }
+        sendImage(file);
+    }
+    else if (mimeType.startsWith('video/'))
+    {
+        // Handle video
+        if (file.size > MAX_VIDEO_SIZE)
+        {
+            chatStore.showToast(`Video too large! Max size is ${formatFileSize(MAX_VIDEO_SIZE)}`, 'error');
+            return;
+        }
+        sendVideo(file);
+    }
+    else
+    {
+        // Handle as general file
+        if (file.size > MAX_FILE_SIZE)
+        {
+            chatStore.showToast(`File too large! Max size is ${formatFileSize(MAX_FILE_SIZE)}`, 'error');
+            return;
+        }
+        sendFile(file);
     }
 }
 

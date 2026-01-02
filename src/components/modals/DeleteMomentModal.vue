@@ -1,23 +1,24 @@
 <template>
     <div v-if="visible" class="modal-overlay" @click.self="cancel">
         <div class="modal">
-            <h3>删除动态</h3>
-            <p class="confirm-text">确定要删除这条动态吗？此操作无法撤销。</p>
+            <h3>{{ comment ? 'Delete Comment' : 'Delete Moment' }}</h3>
+            <p class="confirm-text">Are you sure you want to delete this {{ comment ? 'comment' : 'moment' }}? This action cannot be undone.</p>
             <div class="modal-buttons">
-                <button class="button secondary" @click="cancel">取消</button>
-                <button class="button danger" @click="confirm">删除</button>
+                <button class="button secondary" @click="cancel">Cancel</button>
+                <button class="button danger" @click="confirm">Delete</button>
             </div>
         </div>
     </div>
 </template>
 
 <script setup lang="ts">
-import type { Moment } from '@/types';
+import type { Moment, MomentComment } from '@/types';
 import { wsService } from '@/services/websocket';
 
 const props = defineProps<{
     visible: boolean;
     moment: Moment | null;
+    comment?: MomentComment | null;
 }>();
 
 const emit = defineEmits<{
@@ -32,12 +33,20 @@ function cancel()
 
 function confirm()
 {
-    if (!props.moment) return;
-
-    // Send delete request
-    wsService.sendPacket('delete_moment', {
-        messageId: props.moment.messageId
-    });
+    if (props.comment)
+    {
+        // 删除评论
+        wsService.sendPacket('delete_moment', {
+            messageId: props.comment.id
+        });
+    }
+    else if (props.moment)
+    {
+        // 删除动态
+        wsService.sendPacket('delete_moment', {
+            messageId: props.moment.messageId
+        });
+    }
 
     emit('confirm');
     emit('close');

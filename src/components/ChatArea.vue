@@ -18,8 +18,8 @@
             <!-- Show chat settings panel in chat mode -->
             <ChatSettingsPanel v-if="!chatStore.isMomentsView && chatStore.showSettingsPanel" />
         </div>
-        <!-- Input area only in chat mode -->
-        <InputArea v-if="uiStore.viewState === 'chat'" />
+        <!-- Input area only in chat mode, not in moments -->
+        <InputArea v-if="uiStore.viewState === 'chat' && !chatStore.isMomentsView" />
     </div>
 </template>
 

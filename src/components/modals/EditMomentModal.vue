@@ -1,11 +1,11 @@
 <template>
     <div v-if="visible" class="modal-overlay" @click.self="cancel">
         <div class="modal">
-            <h3>编辑动态</h3>
-            <textarea ref="textareaRef" v-model="editedContent" class="edit-textarea" placeholder="输入内容..." @keydown="handleKeyDown"></textarea>
+            <h3>{{ comment ? 'Edit Comment' : 'Edit Moment' }}</h3>
+            <textarea ref="textareaRef" v-model="editedContent" class="edit-textarea" placeholder="Enter content..." @keydown="handleKeyDown"></textarea>
             <div class="modal-buttons">
-                <button class="button secondary" @click="cancel">取消</button>
-                <button class="button primary" :disabled="!canSave" @click="save">保存</button>
+                <button class="button secondary" @click="cancel">Cancel</button>
+                <button class="button primary" :disabled="!canSave" @click="save">Save</button>
             </div>
         </div>
     </div>
@@ -13,7 +13,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from 'vue';
-import type { Moment } from '@/types';
+import type { Moment, MomentComment } from '@/types';
 import { useChatStore, useUserStore } from '@/stores';
 import { wsService } from '@/services/websocket';
 import { encryptMessageString, decryptMessageString, decryptSymmetricKey } from '@/utils/crypto';
@@ -21,10 +21,12 @@ import { encryptMessageString, decryptMessageString, decryptSymmetricKey } from 
 const props = defineProps<{
     visible: boolean;
     moment: Moment | null;
+    comment?: MomentComment | null;
 }>();
 
 const emit = defineEmits<{
     (e: 'close'): void;
+    (e: 'comment-edited', data: { momentId: number; commentId: number; content: string }): void;
 }>();
 
 const chatStore = useChatStore();
@@ -41,27 +43,36 @@ const canSave = computed(() =>
         !isDecrypting.value;
 });
 
-watch(() => [props.visible, props.moment] as const, async ([visible, moment]) =>
+watch(() => [props.visible, props.moment, props.comment] as const, async ([visible, moment, comment]) =>
 {
-    if (visible && moment)
+    if (visible)
     {
         isDecrypting.value = true;
 
-        // 解密 moment 内容
-        const key = await getDecryptedKey(moment.key);
-        if (key && moment.type === 'TEXT')
+        if (comment)
         {
-            try
+            // 编辑评论 - comment.content 已经是解密后的内容
+            editedContent.value = comment.content;
+            originalContent.value = comment.content;
+        }
+        else if (moment)
+        {
+            // 编辑动态
+            const key = await getDecryptedKey(moment.key);
+            if (key && moment.type === 'TEXT')
             {
-                const decrypted = await decryptMessageString(moment.content, key);
-                editedContent.value = decrypted;
-                originalContent.value = decrypted;
-            }
-            catch (e)
-            {
-                console.error('Failed to decrypt moment for editing', e);
-                editedContent.value = '';
-                originalContent.value = '';
+                try
+                {
+                    const decrypted = await decryptMessageString(moment.content, key);
+                    editedContent.value = decrypted;
+                    originalContent.value = decrypted;
+                }
+                catch (e)
+                {
+                    console.error('Failed to decrypt moment for editing', e);
+                    editedContent.value = '';
+                    originalContent.value = '';
+                }
             }
         }
 
@@ -111,31 +122,63 @@ function cancel()
 
 async function save()
 {
-    if (!canSave.value || !props.moment) return;
+    if (!canSave.value) return;
 
-    const key = await getDecryptedKey(props.moment.key);
-    if (!key)
+    if (props.comment && props.moment)
     {
-        chatStore.showToast('无法获取加密密钥', 'error');
-        return;
+        // 编辑评论
+        const key = await getDecryptedKey(props.moment.key);
+        if (!key)
+        {
+            chatStore.showToast('Failed to get encryption key', 'error');
+            return;
+        }
+
+        try
+        {
+            const encrypted = await encryptMessageString(editedContent.value.trim(), key);
+
+            // 发送编辑请求
+            wsService.sendPacket('edit_moment', {
+                messageId: props.comment.id,
+                content: encrypted
+            });
+
+            emit('close');
+        }
+        catch (e: any)
+        {
+            console.error('Failed to encrypt edited comment', e);
+            chatStore.showToast('Failed to save', 'error');
+        }
     }
-
-    try
+    else if (props.moment)
     {
-        const encrypted = await encryptMessageString(editedContent.value.trim(), key);
+        // 编辑动态
+        const key = await getDecryptedKey(props.moment.key);
+        if (!key)
+        {
+            chatStore.showToast('Failed to get encryption key', 'error');
+            return;
+        }
 
-        // 发送编辑请求
-        wsService.sendPacket('edit_moment', {
-            messageId: props.moment.messageId,
-            content: encrypted
-        });
+        try
+        {
+            const encrypted = await encryptMessageString(editedContent.value.trim(), key);
 
-        emit('close');
-    }
-    catch (e: any)
-    {
-        console.error('Failed to encrypt edited moment', e);
-        chatStore.showToast('保存失败', 'error');
+            // 发送编辑请求
+            wsService.sendPacket('edit_moment', {
+                messageId: props.moment.messageId,
+                content: encrypted
+            });
+
+            emit('close');
+        }
+        catch (e: any)
+        {
+            console.error('Failed to encrypt edited moment', e);
+            chatStore.showToast('Failed to save', 'error');
+        }
     }
 }
 </script>
@@ -173,7 +216,7 @@ async function save()
 .edit-textarea {
     width: 100%;
     min-height: 100px;
-    max-height: 300px;
+    max-height: 120px;
     padding: 0.75rem;
     border: 1px solid var(--border-color);
     border-radius: 8px;
@@ -183,6 +226,7 @@ async function save()
     font-family: inherit;
     resize: vertical;
     margin-bottom: 1rem;
+    box-sizing: border-box;
 }
 
 .edit-textarea:focus {

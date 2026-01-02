@@ -162,6 +162,7 @@ async function save()
     font-family: inherit;
     resize: vertical;
     margin-bottom: 1rem;
+    box-sizing: border-box;
 }
 
 .edit-textarea:focus {

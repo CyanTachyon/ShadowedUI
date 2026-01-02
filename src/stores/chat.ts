@@ -582,14 +582,14 @@ export const useChatStore = defineStore('chat', () =>
     }
 
     // 恢复 moments 视图（不修改历史，用于 popstate 处理）
-    function restoreMomentsView(): void
+    function restoreMomentsView(userId: number | null = null): void
     {
         const uiStore = useUIStore();
 
         isMomentsView.value = true;
         isBroadcastView.value = false;
         currentChatId.value = null;
-        viewingUserMomentsId.value = null;
+        viewingUserMomentsId.value = userId;
         showSettingsPanel.value = false;
 
         uiStore.setViewState('chat');
@@ -683,18 +683,8 @@ export const useChatStore = defineStore('chat', () =>
 
         uiStore.setViewState('chat');
 
-        // 检查当前历史状态，决定是 push 还是 replace
-        const currentState = history.state;
-        if (currentState?.view === 'chat' || currentState?.view === 'settings')
-        {
-            // 已经在聊天/设置视图，替换当前状态
-            history.replaceState({ view: 'chat', chatId: 'moments' }, '', '');
-        }
-        else
-        {
-            // 从列表进入 Moments，压入新状态
-            history.pushState({ view: 'chat', chatId: 'moments' }, '', '');
-        }
+        // 始终压入新状态，保持完整的历史记录
+        history.pushState({ view: 'chat', chatId: 'moments' }, '', '');
     }
 
     function switchToChats(): void
@@ -714,6 +704,9 @@ export const useChatStore = defineStore('chat', () =>
         showSettingsPanel.value = false;
 
         uiStore.setViewState('chat');
+
+        // 压入新的历史状态，让用户可以 back 返回到之前的视图
+        history.pushState({ view: 'chat', chatId: 'moments', viewingUserId: userId }, '', '');
 
         wsService.sendPacket('get_user_moments', {
             userId,
