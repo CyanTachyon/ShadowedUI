@@ -134,8 +134,8 @@ function handleSenderClick()
     position: absolute;
     bottom: -2px;
     right: -2px;
-    width: 16px;
-    height: 16px;
+    width: 15px;
+    height: 15px;
 }
 
 .broadcast-sender {

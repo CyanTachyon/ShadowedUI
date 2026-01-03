@@ -69,21 +69,16 @@
                 <!-- Donors Section -->
                 <div v-if="projectInfo.donors && projectInfo.donors.length > 0" class="detail-section">
                     <h2 class="section-title">Donors</h2>
-                    <div class="donors-note">
-                        No particular order given
-                    </div>
                     <div class="donors-container">
-                        <div
-                            v-for="donor in projectInfo.donors"
-                            :key="getUserId(donor.id)"
-                            class="donor-item"
-                            @click="openUserProfile(donor)"
-                        >
+                        <div v-for="donor in projectInfo.donors" :key="getUserId(donor.id)" class="donor-item" @click="openUserProfile(donor)">
                             <div class="donor-avatar-wrapper">
                                 <img :src="getAvatarUrl(getUserId(donor.id))" :alt="donor.username" class="donor-avatar" />
                                 <DonorBadgeIcon class="donor-badge" />
                             </div>
-                            <div class="donor-username">{{ donor.username }}</div>
+                            <div class="donor-info">
+                                <div class="donor-username">{{ donor.username }}</div>
+                                <div class="donor-amount">¥{{ formatDonationAmount(donor.donationAmount) }}</div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -145,7 +140,7 @@ function goBack()
     history.back();
 }
 
-function getUserId(userId: number | { value: number }): number
+function getUserId(userId: number | { value: number; }): number
 {
     return typeof userId === 'object' ? userId.value : userId;
 }
@@ -159,6 +154,12 @@ function openUserProfile(user: any)
 {
     const uid = getUserId(user.id);
     uiStore.navigateToProfile(uid);
+}
+
+function formatDonationAmount(cents: number): string
+{
+    const yuan = cents / 100;
+    return yuan.toFixed(2);
 }
 </script>
 
@@ -291,13 +292,14 @@ function openUserProfile(user: any)
 
 .donor-item {
     display: flex;
-    flex-direction: column;
     align-items: center;
-    gap: 8px;
-    padding: 12px;
+    gap: 12px;
+    padding: 12px 16px;
     border-radius: 12px;
     cursor: pointer;
     transition: all 0.2s;
+    min-width: 200px;
+    flex: 1 1 200px;
 }
 
 .donor-item:hover {
@@ -306,6 +308,7 @@ function openUserProfile(user: any)
 
 .donor-avatar-wrapper {
     position: relative;
+    flex-shrink: 0;
 }
 
 .donor-avatar {
@@ -324,15 +327,25 @@ function openUserProfile(user: any)
     height: 22px;
 }
 
+.donor-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 1;
+}
+
 .donor-username {
     font-size: 14px;
     font-weight: 500;
     color: var(--text-color);
-    text-align: center;
-    max-width: 80px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    text-align: left;
+}
+
+.donor-amount {
+    font-size: 12px;
+    color: var(--primary-color);
+    font-weight: 600;
+    text-align: left;
 }
 
 .action-section {

@@ -51,7 +51,29 @@
                         <p v-else class="text-content">Loading image...</p>
                     </template>
                 </div>
-                
+
+                <!-- Reactions section -->
+                <div class="moment-reactions">
+                    <div v-if="moment.reactions && moment.reactions.length > 0" class="reactions-summary" @click="handleReactionsClick($event, moment.messageId)" @contextmenu.prevent.stop="handleReactionsClick($event, moment.messageId)">
+                        <span class="reaction-emojis">
+                            {{getMomentTopReactions(moment.messageId).map(r => r.emoji).join('')}}
+                        </span>
+                        <span class="reaction-count">
+                            {{moment.reactions.reduce((sum, r) => sum + r.userIds.length, 0)}}
+                        </span>
+                    </div>
+                    <!-- Add Reaction Button -->
+                    <div class="add-reaction-btn" :class="{ 'has-reaction': getMomentCurrentReaction(moment.messageId) }" @click="handleAddReactionClick($event, moment.messageId)" @contextmenu.prevent.stop="handleAddReactionClick($event, moment.messageId)">
+                        <span v-if="getMomentCurrentReaction(moment.messageId)" class="current-reaction-emoji">{{ getMomentCurrentReaction(moment.messageId) }}</span>
+                        <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <path d="M8 15s1.5 2 4 2 4-2 4-2"></path>
+                            <line x1="9" y1="9" x2="9.01" y2="9"></line>
+                            <line x1="15" y1="9" x2="15.01" y2="9"></line>
+                        </svg>
+                    </div>
+                </div>
+
                 <!-- Comment section -->
                 <div class="moment-actions">
                     <button class="comment-toggle-btn" @click="toggleComments(moment.messageId)">
@@ -59,7 +81,7 @@
                         <span v-else>Show comments</span>
                     </button>
                 </div>
-                
+
                 <!-- Comments list -->
                 <div v-if="showComments.has(moment.messageId)" class="comments-section">
                     <div v-if="getMomentComments(moment.messageId).length === 0" class="no-comments">
@@ -78,7 +100,7 @@
                             </div>
                         </div>
                     </div>
-                    
+
                     <!-- Comment input -->
                     <CommentInput :moment="moment" @commentSent="handleCommentSent" />
                 </div>
@@ -104,28 +126,24 @@
                 </div>
             </div>
         </div>
-        
+
         <!-- Context Menu -->
         <ContextMenu :visible="contextMenuVisible" :x="contextMenuX" :y="contextMenuY" :items="contextMenuItems" @close="contextMenuVisible = false" @select="handleMenuSelect" />
-        
+
         <!-- Comment Context Menu -->
         <ContextMenu :visible="commentContextMenuVisible" :x="commentContextMenuX" :y="commentContextMenuY" :items="commentContextMenuItems" @close="commentContextMenuVisible = false" @select="handleMenuSelect" />
-        
+
+        <!-- Emoji Picker -->
+        <EmojiPicker :visible="emojiPickerVisible" :x="emojiPickerX" :y="emojiPickerY" @close="emojiPickerVisible = false" @select="handleEmojiSelect" />
+
+        <!-- Reactions Popup -->
+        <ReactionsPopup :visible="reactionsPopupVisible" :x="reactionsPopupX" :y="reactionsPopupY" :reactions="getSelectedMomentReactions()" :users="getUserMap()" @close="reactionsPopupVisible = false" @user-click="handleUserClick" />
+
         <!-- Edit Moment/Comment Modal -->
-        <EditMomentModal 
-            :visible="showEditModal" 
-            :moment="selectedComment?.momentId ? moments.find(m => m.messageId === selectedComment?.momentId) || null : selectedMoment" 
-            :comment="selectedComment?.comment || null" 
-            @close="showEditModal = false" 
-        />
-        
+        <EditMomentModal :visible="showEditModal" :moment="selectedComment?.momentId ? moments.find(m => m.messageId === selectedComment?.momentId) || null : selectedMoment" :comment="selectedComment?.comment || null" @close="showEditModal = false" />
+
         <!-- Delete Moment/Comment Modal -->
-        <DeleteMomentModal 
-            :visible="showDeleteModal" 
-            :moment="selectedComment?.momentId ? moments.find(m => m.messageId === selectedComment?.momentId) || null : selectedMoment" 
-            :comment="selectedComment?.comment || null" 
-            @close="showDeleteModal = false" 
-        />
+        <DeleteMomentModal :visible="showDeleteModal" :moment="selectedComment?.momentId ? moments.find(m => m.messageId === selectedComment?.momentId) || null : selectedMoment" :comment="selectedComment?.comment || null" @close="showDeleteModal = false" />
     </div>
 </template>
 
@@ -134,6 +152,7 @@ import { ref, onMounted, watch, computed, reactive } from 'vue';
 import { useChatStore, useUserStore, useUIStore } from '@/stores';
 import { wsService } from '@/services/websocket';
 import { getAvatarUrl, getUserId } from '@/utils/helpers';
+import { sendPacket } from '@/services/api';
 import
 {
     decryptSymmetricKey,
@@ -142,7 +161,7 @@ import
     encryptSymmetricKey,
     encryptMessageString
 } from '@/utils/crypto';
-import type { Moment, MomentComment } from '@/types';
+import type { Moment, MomentComment, Reaction } from '@/types';
 import EditMomentModal from './modals/EditMomentModal.vue';
 import DeleteMomentModal from './modals/DeleteMomentModal.vue';
 import CommentInput from './CommentInput.vue';
@@ -150,6 +169,8 @@ import ContextMenu, { type ContextMenuItem } from './ContextMenu.vue';
 import EditIcon from './icons/EditIcon.vue';
 import DeleteIcon from './icons/DeleteIcon.vue';
 import DonorBadgeIcon from './icons/DonorBadgeIcon.vue';
+import EmojiPicker from './EmojiPicker.vue';
+import ReactionsPopup from './ReactionsPopup.vue';
 
 interface DecryptedMoment extends Moment
 {
@@ -179,7 +200,7 @@ const selectedMoment = ref<DecryptedMoment | null>(null);
 const commentContextMenuVisible = ref(false);
 const commentContextMenuX = ref(0);
 const commentContextMenuY = ref(0);
-const selectedComment = ref<{ momentId: number; comment: MomentComment } | null>(null);
+const selectedComment = ref<{ momentId: number; comment: MomentComment; } | null>(null);
 
 // Modals state
 const showEditModal = ref(false);
@@ -188,6 +209,17 @@ const showDeleteModal = ref(false);
 // Comments state
 const showComments = ref<Set<number>>(new Set());
 const comments = reactive<Map<number, MomentComment[]>>(new Map());
+
+// Emoji picker state
+const emojiPickerVisible = ref(false);
+const emojiPickerX = ref(0);
+const emojiPickerY = ref(0);
+
+// Reactions popup state
+const reactionsPopupVisible = ref(false);
+const reactionsPopupX = ref(0);
+const reactionsPopupY = ref(0);
+const selectedMomentId = ref<number | null>(null);
 
 // View mode: null = viewing all moments, number = viewing specific user's moments
 const viewingUserId = computed(() => chatStore.viewingUserMomentsId);
@@ -221,6 +253,31 @@ const isCommentOwner = computed(() =>
 
 // Cache for decrypted keys
 const keyCache = new Map<string, CryptoKey>();
+
+// Helper functions for reactions
+function getMomentTopReactions(momentId: number)
+{
+    const moment = moments.value.find(m => m.messageId === momentId);
+    if (!moment || !moment.reactions) return [];
+    return [...moment.reactions]
+        .sort((a, b) => b.userIds.length - a.userIds.length)
+        .slice(0, 10);
+}
+
+function getMomentCurrentReaction(momentId: number): string | null
+{
+    const moment = moments.value.find(m => m.messageId === momentId);
+    if (!moment || !moment.reactions || !userStore.currentUser) return null;
+    const userId = getUserId(userStore.currentUser.id);
+    for (const reaction of moment.reactions)
+    {
+        if (reaction.userIds.includes(userId))
+        {
+            return reaction.emoji;
+        }
+    }
+    return null;
+}
 
 async function getDecryptedKey(encryptedKey: string): Promise<CryptoKey | null>
 {
@@ -561,19 +618,30 @@ function getMomentComments(momentId: number): MomentComment[]
 }
 
 // Edit moment or comment handler
-async function handleMomentEdited(data: { messageId: number; content: string; })
+async function handleMomentEdited(data: { messageId: number; content?: string; reactions?: any; })
 {
     // First check if it's a moment
     const moment = moments.value.find(m => m.messageId === data.messageId);
     if (moment)
     {
-        moment.content = data.content;
-        moment.decryptedContent = '[Updated]';
-        // Re-decrypt
-        decryptMoment(moment).then(decrypted =>
+        // Update content if provided
+        if (data.content !== undefined)
         {
-            moment.decryptedContent = decrypted.decryptedContent;
-        });
+            moment.content = data.content;
+            moment.decryptedContent = '[Updated]';
+            // Re-decrypt
+            decryptMoment(moment).then(decrypted =>
+            {
+                moment.decryptedContent = decrypted.decryptedContent;
+            });
+        }
+
+        // Update reactions if provided
+        if (data.reactions !== undefined)
+        {
+            moment.reactions = data.reactions;
+        }
+
         return;
     }
 
@@ -592,7 +660,7 @@ async function handleMomentEdited(data: { messageId: number; content: string; })
 
             try
             {
-                const decryptedContent = await decryptMessageString(data.content, key);
+                const decryptedContent = await decryptMessageString(data.content!, key);
                 const updatedComments = [...momentComments];
                 updatedComments[commentIndex] = {
                     ...updatedComments[commentIndex],
@@ -648,11 +716,11 @@ async function handleCommentAdded(data: { comment: any; })
         // Find the moment to get its key for decryption
         const moment = moments.value.find(m => m.messageId === momentId);
         if (!moment) return;
-        
+
         // Get the decrypted key for this moment
         const key = await getDecryptedKey(moment.key);
         if (!key) return;
-        
+
         // Decrypt the comment
         let decryptedContent = '[Decryption failed]';
         try
@@ -670,7 +738,7 @@ async function handleCommentAdded(data: { comment: any; })
         {
             console.error('Failed to decrypt comment:', e);
         }
-        
+
         const comment: MomentComment = {
             id: data.comment.id,
             content: decryptedContent,
@@ -680,7 +748,7 @@ async function handleCommentAdded(data: { comment: any; })
             time: data.comment.time,
             type: data.comment.type
         };
-        
+
         // Add comment to the moment's comments
         const existingComments = comments.get(momentId) || [];
         comments.set(momentId, [...existingComments, comment]);
@@ -691,17 +759,18 @@ async function handleCommentAdded(data: { comment: any; })
 async function handleMomentComments(data: { momentMessageId: number; comments: any[]; })
 {
     const momentId = data.momentMessageId;
-    
+
     // Find the moment to get its key for decryption
     const moment = moments.value.find(m => m.messageId === momentId);
     if (!moment) return;
-    
+
     // Get the decrypted key for this moment
     const key = await getDecryptedKey(moment.key);
     if (!key) return;
-    
+
     // Decrypt each comment
-    const commentsList = await Promise.all(data.comments.map(async (c: any) => {
+    const commentsList = await Promise.all(data.comments.map(async (c: any) =>
+    {
         let decryptedContent = '[Decryption failed]';
         try
         {
@@ -718,7 +787,7 @@ async function handleMomentComments(data: { momentMessageId: number; comments: a
         {
             console.error('Failed to decrypt comment:', e);
         }
-        
+
         return {
             id: c.id,
             content: decryptedContent,
@@ -729,7 +798,7 @@ async function handleMomentComments(data: { momentMessageId: number; comments: a
             type: c.type
         };
     }));
-    
+
     comments.set(momentId, commentsList);
 }
 
@@ -738,6 +807,94 @@ function handleCommentSent()
     // Comment was sent successfully
     // The comment will be received via WebSocket and added to comments list
     // No need to refresh moments
+}
+
+function getSelectedMomentReactions(): Reaction[]
+{
+    const moment = moments.value.find(m => m.messageId === selectedMomentId.value);
+    return moment?.reactions || [];
+}
+
+// Reaction handlers
+function handleAddReactionClick(event: MouseEvent, momentId: number)
+{
+    selectedMomentId.value = momentId;
+    const moment = moments.value.find(m => m.messageId === momentId);
+    if (!moment) return;
+
+    // If current user already reacted, clicking should toggle it off
+    const currentReaction = getMomentCurrentReaction(momentId);
+    if (currentReaction)
+    {
+        sendPacket('toggle_reaction', {
+            messageId: momentId,
+            emoji: currentReaction
+        });
+        return;
+    }
+
+    // Otherwise, open emoji picker
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    emojiPickerX.value = rect.left;
+    emojiPickerY.value = rect.bottom + 4;
+    emojiPickerVisible.value = true;
+}
+
+function handleReactionsClick(event: MouseEvent, momentId: number)
+{
+    selectedMomentId.value = momentId;
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    reactionsPopupX.value = rect.left;
+    reactionsPopupY.value = rect.bottom + 4;
+    reactionsPopupVisible.value = true;
+}
+
+function handleEmojiSelect(emoji: string)
+{
+    if (!userStore.currentUser || selectedMomentId.value === null) return;
+
+    // If clicking the same emoji, toggle it off
+    const currentReaction = getMomentCurrentReaction(selectedMomentId.value);
+    if (currentReaction === emoji)
+    {
+        sendPacket('toggle_reaction', {
+            messageId: selectedMomentId.value,
+            emoji: emoji
+        });
+        return;
+    }
+
+    // Otherwise, send new reaction
+    sendPacket('toggle_reaction', {
+        messageId: selectedMomentId.value,
+        emoji: emoji
+    });
+}
+
+function getUserMap(): Map<number, string>
+{
+    const userMap = new Map<number, string>();
+    const moment = moments.value.find(m => m.messageId === selectedMomentId.value);
+    if (!moment || !moment.reactions) return userMap;
+
+    for (const reaction of moment.reactions)
+    {
+        for (const userId of reaction.userIds)
+        {
+            if (!userMap.has(userId))
+            {
+                userMap.set(userId, `User ${userId}`);
+            }
+        }
+    }
+    return userMap;
+}
+
+function handleUserClick(userId: number)
+{
+    if (!userStore.currentUser) return;
+    if (userId === getUserId(userStore.currentUser.id)) return;
+    uiStore.navigateToProfile(userId);
 }
 
 // Register WebSocket handlers
@@ -1075,6 +1232,69 @@ watch(() => viewingUserId.value, (newUserId, oldUserId) =>
 .post-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+}
+
+/* Reactions styles */
+.moment-reactions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding-left: 50px;
+    margin-top: 8px;
+}
+
+.reactions-summary {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 6px;
+    border-radius: 12px;
+    background: rgba(0, 0, 0, 0.05);
+    cursor: pointer;
+    font-size: 0.8em;
+    transition: background-color 0.15s ease;
+}
+
+.reactions-summary:hover {
+    background: rgba(0, 0, 0, 0.1);
+}
+
+.reaction-emojis {
+    display: flex;
+    gap: 2px;
+    font-family: 'Noto Color Emoji';
+}
+
+.reaction-count {
+    font-size: 0.85em;
+    opacity: 0.8;
+}
+
+.add-reaction-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    cursor: pointer;
+    opacity: 0.5;
+    transition: all 0.15s ease;
+}
+
+.add-reaction-btn.has-reaction {
+    opacity: 1;
+}
+
+.add-reaction-btn:hover {
+    opacity: 1;
+    background: rgba(0, 0, 0, 0.05);
+}
+
+.current-reaction-emoji {
+    font-size: 16px;
+    line-height: 1;
+    font-family: 'Noto Color Emoji';
 }
 
 /* Comment styles */

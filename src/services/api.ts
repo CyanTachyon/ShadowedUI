@@ -3,8 +3,15 @@
  */
 
 import type { ProjectInfo } from '@/types';
+import { wsService } from './websocket';
 
 let authKey: string | null = null;
+
+// Send packet via WebSocket
+export function sendPacket(type: string, payload: object): void
+{
+    wsService.sendPacket(type, payload);
+}
 
 export async function fetchAuthParams(): Promise<string>
 {

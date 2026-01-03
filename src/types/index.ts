@@ -36,6 +36,12 @@ export interface ReplyInfo
     type: 'TEXT' | 'IMAGE' | 'VIDEO' | 'FILE';
 }
 
+export interface Reaction
+{
+    emoji: string;
+    userIds: number[];
+}
+
 export interface Message
 {
     id: number;
@@ -48,6 +54,7 @@ export interface Message
     time: string;
     replyTo?: ReplyInfo;
     readAt?: number | null; // 已读时间戳，null或undefined表示未读
+    reactions?: Reaction[];
 }
 
 // 图片元数据
@@ -146,6 +153,7 @@ export interface Moment
     time: number;
     key: string;
     ownerIsDonor?: boolean;
+    reactions: Reaction[];
     comments?: MomentComment[];
     commentCount?: number;
 }
@@ -185,6 +193,14 @@ export interface DeveloperInfo
     github: string | null;
 }
 
+export interface DonorInfo
+{
+    id: number | { value: number; };
+    username: string;
+    isDonor: boolean;
+    donationAmount: number; // 单位：分
+}
+
 export interface ProjectInfo
 {
     name: string;
@@ -195,5 +211,5 @@ export interface ProjectInfo
         wechatQrCode: string | null;
         alipayQrCode: string | null;
     };
-    donors: User[];
+    donors: DonorInfo[];
 }

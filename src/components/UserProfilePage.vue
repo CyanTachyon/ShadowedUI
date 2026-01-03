@@ -4,9 +4,9 @@
             <div class="profile-header-section">
                 <div class="avatar-container">
                     <img v-if="userId" :src="getAvatarUrl(userId)" class="profile-avatar" alt="avatar" />
-                        <DonorBadgeIcon v-if="user?.isDonor" class="profile-donor-badge" />
-                    <div v-if="user?.signature" class="profile-signature">{{ user.signature }}</div>
-                    <div class="profile-user-id">ID: {{ userId }}</div>
+                    <DonorBadgeIcon v-if="user?.isDonor" class="profile-donor-badge" />
+                    <div v-if="user?.username">{{ user.username }}</div>
+                    <div class="profile-signature">ID: {{ userId }}</div>
                 </div>
             </div>
 
@@ -394,7 +394,6 @@ function goBack()
     height: 100%;
     background-color: var(--bg-color);
     display: flex;
-    align-items: center;
     justify-content: center;
     overflow-y: auto;
 }
@@ -403,7 +402,7 @@ function goBack()
     width: 100%;
     max-width: 600px;
     padding: 24px;
-    margin: 0 auto;
+    margin: auto;
 }
 
 .profile-header-section {

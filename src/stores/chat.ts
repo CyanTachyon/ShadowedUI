@@ -141,14 +141,14 @@ export const useChatStore = defineStore('chat', () =>
             {
                 // 当前聊天已被删除，关闭聊天视图
                 const wasInSettings = showSettingsPanel.value;
-                
+
                 currentChatId.value = null;
                 currentChatMessages.value = [];
                 currentChatDetails.value = null;
                 showSettingsPanel.value = false;
                 isBroadcastView.value = false;
                 uiStore.setViewState('list');
-                
+
                 // 根据当前状态处理历史
                 // 如果在设置页面，需要回退两步（settings -> chat -> list）
                 // 如果在聊天页面，需要回退一步（chat -> list）
@@ -228,7 +228,7 @@ export const useChatStore = defineStore('chat', () =>
     function mergeMessages(messages: Message[])
     {
         const map = new Map(currentChatMessages.value.map(m => [m.id, m]));
-        for (const m of messages) 
+        for (const m of messages)
             if (m.type === 'TEXT' && !m.content) map.delete(m.id);
             else map.set(m.id, m);
         currentChatMessages.value = Array.from(map.values()).sort((a, b) => b.id - a.id);
@@ -245,28 +245,27 @@ export const useChatStore = defineStore('chat', () =>
         mergeMessages(data.messages);
     }
 
-    function handleReceiveMessage(data: { message: Message; }): void
+    function handleReceiveMessage(data: { message: Message; silent?: boolean; }): void
     {
         const msg = data.message;
-        
+
         // 检查是否是删除消息（空内容TEXT类型）
         const isDeleteMessage = msg.type === 'TEXT' && !msg.content;
-        
+
         // 检查是否是更新已有消息（消息ID已存在）
         const isExistingMessage = currentChatMessages.value.some(m => m.id === msg.id);
-        
+
         if (msg.chatId === currentChatId.value)
             mergeMessages([msg]);
-        
-        // 只对新消息触发通知，不包括删除或更新
-        if (isDeleteMessage || isExistingMessage) return;
-        
+
+        // 只对新消息触发通知，不包括删除、更新或静默消息
+        if (isDeleteMessage || isExistingMessage || data.silent) return;
+
         if (msg.chatId !== currentChatId.value || !isPageInForeground())
         {
             const chat = chats.value.find(c => c.chatId === msg.chatId);
             if (!chat) return;
             if (chat.doNotDisturb) return;
-            if (data.message.readAt) return; // 已读消息不通知
             const message = chat.isPrivate ? `New message from ${msg.senderName || 'a friend'}` : `New message in ${chat.name || 'a group chat'}`;
             showToast(message, 'info', () =>
             {
@@ -517,11 +516,11 @@ export const useChatStore = defineStore('chat', () =>
             uiStore.setViewState('settings');
             const currentState = history.state;
             if (currentState?.view === 'settings')
-                history.replaceState({ view: 'settings', chatId: currentChatId.value }, '', '')
+                history.replaceState({ view: 'settings', chatId: currentChatId.value }, '', '');
             else
-                history.pushState({ view: 'settings', chatId: currentChatId.value }, '', '')
+                history.pushState({ view: 'settings', chatId: currentChatId.value }, '', '');
             if (currentChatId.value)
-                wsService.sendPacket('get_chat_details', { chatId: currentChatId.value })
+                wsService.sendPacket('get_chat_details', { chatId: currentChatId.value });
         }
     }
 
@@ -539,7 +538,7 @@ export const useChatStore = defineStore('chat', () =>
         const uiStore = useUIStore();
         showSettingsPanel.value = true;
         uiStore.setViewState('settings');
-        
+
         const targetChatId = chatId ?? currentChatId.value;
         if (targetChatId)
         {
@@ -648,6 +647,12 @@ export const useChatStore = defineStore('chat', () =>
     function markMessageRead(messageId: number): void
     {
         wsService.sendPacket('mark_message_read', { messageId });
+    }
+
+    // 切换消息反应（点赞）
+    function toggleReaction(messageId: number, emoji: string): void
+    {
+        wsService.sendPacket('toggle_reaction', { messageId, emoji });
     }
 
     // Refresh
@@ -788,6 +793,7 @@ export const useChatStore = defineStore('chat', () =>
         setBurnTime,
         getCurrentBurnTime,
         markMessageRead,
+        toggleReaction,
         refreshChats,
         setFriends,
         handleUnreadCount,

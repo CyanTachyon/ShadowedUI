@@ -122,7 +122,7 @@ function setupWebSocketHandlers()
         chatStore.handleUnreadCount(data);
     });
 
-    wsService.on('public_key_by_username', () =>{});
+    wsService.on('public_key_by_username', () => {});
 
     wsService.onConnect(async () =>
     {
@@ -330,6 +330,7 @@ body {
 /* Scrollbar styling */
 ::-webkit-scrollbar {
     width: 8px;
+    height: 8px;
 }
 
 ::-webkit-scrollbar-track {

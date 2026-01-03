@@ -80,11 +80,38 @@
             </template>
         </div>
 
-        <!-- Metadata -->
-        <div class="meta" :style="{ textAlign: isMe ? 'right' : 'left' }">
-            {{ formatDate(message.time) }}
+        <!-- Metadata and Reactions -->
+        <div class="meta-section" :style="{ justifyContent: isMe ? 'flex-end' : 'flex-start' }">
+            <div class="meta">
+                {{ formatDate(message.time) }}
+            </div>
+            <!-- Reaction Button -->
+            <div v-if="message.reactions && message.reactions.length > 0" class="reactions-summary" @click="handleReactionsClick" @contextmenu.prevent.stop="handleReactionsClick">
+                <span class="reaction-emojis">
+                    {{topReactions.map(r => r.emoji).join('')}}
+                </span>
+                <span class="reaction-count">
+                    {{message.reactions.reduce((sum, r) => sum + r.userIds.length, 0)}}
+                </span>
+            </div>
+            <!-- Add Reaction Button -->
+            <div class="add-reaction-btn" :class="{ 'has-reaction': currentUserReaction }" @click="handleAddReactionClick" @contextmenu.prevent.stop="handleAddReactionClick">
+                <span v-if="currentUserReaction" class="current-reaction-emoji">{{ currentUserReaction }}</span>
+                <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <path d="M8 14s1.5 2 4 2 4-2 4-2"></path>
+                    <line x1="9" y1="9" x2="9.01" y2="9"></line>
+                    <line x1="15" y1="9" x2="15.01" y2="9"></line>
+                </svg>
+            </div>
         </div>
     </div>
+
+    <!-- Emoji Picker -->
+    <EmojiPicker :visible="emojiPickerVisible" :x="emojiPickerX" :y="emojiPickerY" @close="emojiPickerVisible = false" @select="handleEmojiSelect" />
+
+    <!-- Reactions Popup -->
+    <ReactionsPopup :visible="reactionsPopupVisible" :x="reactionsPopupX" :y="reactionsPopupY" :reactions="message.reactions || []" :users="getUserMap()" @close="reactionsPopupVisible = false" @user-click="handleUserClick" />
 
     <!-- Context Menu -->
     <ContextMenu :visible="contextMenuVisible" :x="contextMenuX" :y="contextMenuY" :items="contextMenuItems" @close="contextMenuVisible = false" @select="handleMenuSelect" />
@@ -102,10 +129,12 @@ import type { Message } from '@/types';
 import { useChatStore, useUserStore, useUIStore } from '@/stores';
 import { decryptMessageString, decryptMessageBytes } from '@/utils/crypto';
 import { getAvatarUrl, formatDate, getUserId } from '@/utils/helpers';
-import { fetchMessageFile } from '@/services/api';
+import { fetchMessageFile, sendPacket } from '@/services/api';
 import ContextMenu, { type ContextMenuItem } from './ContextMenu.vue';
 import EditMessageModal from './modals/EditMessageModal.vue';
 import ImageViewerModal from './modals/ImageViewerModal.vue';
+import EmojiPicker from './EmojiPicker.vue';
+import ReactionsPopup from './ReactionsPopup.vue';
 import ReplyIcon from './icons/ReplyIcon.vue';
 import EditIcon from './icons/EditIcon.vue';
 import DeleteIcon from './icons/DeleteIcon.vue';
@@ -159,6 +188,16 @@ const contextMenuX = ref(0);
 const contextMenuY = ref(0);
 const editModalVisible = ref(false);
 
+// Emoji picker state
+const emojiPickerVisible = ref(false);
+const emojiPickerX = ref(0);
+const emojiPickerY = ref(0);
+
+// Reactions popup state
+const reactionsPopupVisible = ref(false);
+const reactionsPopupX = ref(0);
+const reactionsPopupY = ref(0);
+
 // Touch handling for long press
 let touchTimer: ReturnType<typeof setTimeout> | null = null;
 let touchStartX = 0;
@@ -186,24 +225,53 @@ const isReplyToImage = computed(() =>
     return props.message.replyTo?.type && props.message.replyTo.type.toLowerCase() === 'image';
 });
 
+// 当前用户对该消息的reaction
+const currentUserReaction = computed(() =>
+{
+    if (!props.message.reactions) return null;
+    if (!userStore.currentUser) return null;
+
+    const userId = getUserId(userStore.currentUser.id);
+
+    // 查找当前用户在哪个reaction中
+    for (const reaction of props.message.reactions)
+    {
+        if (reaction.userIds.includes(userId))
+        {
+            return reaction.emoji;
+        }
+    }
+
+    return null;
+});
+
+// 点赞最多的3个reaction
+const topReactions = computed(() =>
+{
+    if (!props.message.reactions) return [];
+    return [...props.message.reactions]
+        .sort((a, b) => b.userIds.length - a.userIds.length)
+        .slice(0, 3);
+});
+
 // Context menu items - 可扩展，根据消息类型和所有者动态生成
 const contextMenuItems = computed<ContextMenuItem[]>(() =>
 {
     const items: ContextMenuItem[] = [];
     const msgType = props.message.type.toLowerCase();
-    
+
     // Add reply option for all message types
     items.push({ id: 'reply', label: 'Reply', icon: ReplyIcon });
-    
+
     if (msgType === 'text')
         items.push({ id: 'copy', label: 'Copy', icon: CopyIcon });
-    
+
     if (msgType === 'image' || msgType === 'video' || msgType === 'file')
         items.push({ id: 'download', label: 'Download', icon: DownloadIcon });
-    
+
     if (isMe.value && msgType === 'text')
         items.push({ id: 'edit', label: 'Edit', icon: EditIcon });
-    
+
     if (isMe.value)
         items.push({ id: 'delete', label: 'Delete', icon: DeleteIcon });
 
@@ -275,7 +343,7 @@ function handleTouchMove(event: TouchEvent)
 async function handleMenuSelect(item: ContextMenuItem)
 {
     const msgType = props.message.type.toLowerCase();
-    
+
     switch (item.id)
     {
         case 'reply':
@@ -301,6 +369,77 @@ async function handleMenuSelect(item: ContextMenuItem)
     }
 }
 
+// Reaction handlers
+function handleAddReactionClick(event: MouseEvent)
+{
+    // 如果当前用户已经点赞了，点击add-reaction-btn应该取消点赞
+    if (currentUserReaction.value)
+    {
+        sendPacket('toggle_reaction', {
+            messageId: props.message.id,
+            emoji: currentUserReaction.value
+        });
+        return;
+    }
+
+    // 否则打开emoji picker
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    emojiPickerX.value = rect.left;
+    emojiPickerY.value = rect.bottom + 4;
+    emojiPickerVisible.value = true;
+}
+
+function handleReactionsClick(event: MouseEvent)
+{
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    reactionsPopupX.value = rect.left;
+    reactionsPopupY.value = rect.bottom + 4;
+    reactionsPopupVisible.value = true;
+}
+
+function handleEmojiSelect(emoji: string)
+{
+    if (!userStore.currentUser) return;
+
+    // 如果点击的是当前已点过的emoji，则取消点赞
+    if (currentUserReaction.value === emoji)
+    {
+        sendPacket('toggle_reaction', {
+            messageId: props.message.id,
+            emoji: emoji
+        });
+        return;
+    }
+
+    // 否则发送新的reaction
+    sendPacket('toggle_reaction', {
+        messageId: props.message.id,
+        emoji: emoji
+    });
+}
+
+function getUserMap(): Map<number, string>
+{
+    const userMap = new Map<number, string>();
+
+    if (!props.message.reactions) return userMap;
+
+    for (const reaction of props.message.reactions)
+    {
+        for (const userId of reaction.userIds)
+        {
+            // 可以从消息中获取senderName，或者从其他地方缓存
+            // 这里简单使用userId作为key
+            if (!userMap.has(userId))
+            {
+                userMap.set(userId, `User ${userId}`);
+            }
+        }
+    }
+
+    return userMap;
+}
+
 async function copyMessage()
 {
     try
@@ -323,6 +462,13 @@ function openUserProfile()
 {
     if (isMe.value) return;
     uiStore.navigateToProfile(props.message.senderId);
+}
+
+function handleUserClick(userId: number)
+{
+    if (!userStore.currentUser) return;
+    if (userId === getUserId(userStore.currentUser.id)) return;
+    uiStore.navigateToProfile(userId);
 }
 
 function deleteMessage()
@@ -399,7 +545,7 @@ async function decryptMessage()
     try
     {
         const msgType = props.message.type.toLowerCase();
-        
+
         if (msgType === 'text')
         {
             decryptedContent.value = await decryptMessageString(props.message.content, key);
@@ -434,13 +580,13 @@ async function decryptMessage()
             {
                 const metadata = JSON.parse(await decryptMessageString(props.message.content, key)) as VideoMetadata;
                 videoMetadata.value = metadata;
-                
+
                 // 创建占位图
                 if (metadata.width && metadata.height)
                 {
                     videoPlaceholder.value = createPlaceholder(metadata.width, metadata.height);
                 }
-                
+
                 // 解密并显示缩略图
                 if (metadata.thumbnailBase64)
                 {
@@ -635,13 +781,13 @@ async function playVideo()
     {
         isDownloading.value = true;
         downloadProgress.value = 1;
-        
+
         // 下载并解密视频
         const base64 = await downloadFileApi(props.message.id, (loaded, total) =>
         {
             downloadProgress.value = Math.round((loaded / total) * 100);
         });
-        
+
         const videoData = await decryptMessageBytes(base64, key);
         const blob = new Blob([videoData], { type: 'video/mp4' });
         videoUrl.value = URL.createObjectURL(blob);
@@ -680,7 +826,7 @@ async function downloadVideo()
     {
         await playVideo();
     }
-    
+
     if (videoUrl.value)
     {
         const a = document.createElement('a');
@@ -712,18 +858,18 @@ async function downloadFile()
     {
         isDownloading.value = true;
         downloadProgress.value = 1;
-        
+
         // 下载并解密文件
         const base64 = await downloadFileApi(props.message.id, (loaded, total) =>
         {
             downloadProgress.value = Math.round((loaded / total) * 100);
         });
-        
+
         const fileData = await decryptMessageBytes(base64, key);
         const mimeType = fileMetadata.value?.mimeType || 'application/octet-stream';
         const blob = new Blob([fileData], { type: mimeType });
         const url = URL.createObjectURL(blob);
-        
+
         const a = document.createElement('a');
         a.href = url;
         a.download = fileMetadata.value?.fileName || `file_${props.message.id}`;
@@ -731,7 +877,7 @@ async function downloadFile()
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
-        
+
         downloadProgress.value = 0;
         chatStore.showToast('File downloaded', 'success');
     }
@@ -749,6 +895,14 @@ async function downloadFile()
 </script>
 
 <style scoped>
+@font-face {
+    font-family: 'Noto Color Emoji';
+    src: url('@/assets/fonts/NotoColorEmoji.ttf') format('truetype');
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+}
+
 .message {
     max-width: 70%;
     padding: 0.5rem 1rem;
@@ -802,8 +956,8 @@ async function downloadFile()
     position: absolute;
     bottom: -3px;
     right: -3px;
-    width: 18px;
-    height: 18px;
+    width: 15px;
+    height: 15px;
 }
 
 .content {
@@ -1127,6 +1281,84 @@ async function downloadFile()
     font-size: 0.7em;
     margin-top: 4px;
     opacity: 0.7;
+}
+
+.meta-section {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 4px;
+}
+
+.reactions-summary {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 6px;
+    border-radius: 12px;
+    background: rgba(0, 0, 0, 0.05);
+    cursor: pointer;
+    font-size: 0.8em;
+    transition: background-color 0.15s ease;
+}
+
+.message.sent .reactions-summary {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.reactions-summary:hover {
+    background: rgba(0, 0, 0, 0.1);
+}
+
+.message.sent .reactions-summary:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+.reaction-emojis {
+    display: flex;
+    gap: 2px;
+    font-family: 'Noto Color Emoji';
+}
+
+.reaction-count {
+    font-size: 0.85em;
+    opacity: 0.8;
+}
+
+.add-reaction-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    cursor: pointer;
+    opacity: 0.5;
+    transition: all 0.15s ease;
+}
+
+.add-reaction-btn.has-reaction {
+    opacity: 1;
+}
+
+.add-reaction-btn:hover {
+    opacity: 1;
+    background: rgba(0, 0, 0, 0.05);
+}
+
+.message.sent .add-reaction-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.add-reaction-btn svg {
+    width: 16px;
+    height: 16px;
+}
+
+.current-reaction-emoji {
+    font-size: 16px;
+    line-height: 1;
+    font-family: 'Noto Color Emoji';
 }
 
 @keyframes fadeIn {
