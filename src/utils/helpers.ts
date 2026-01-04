@@ -31,13 +31,24 @@ export async function generateVideoThumbnail(
         video.preload = 'metadata';
         video.muted = true;
         video.playsInline = true;
+        video.autoplay = false;
         video.crossOrigin = 'anonymous';
+        
+        // 添加移动端需要的属性
+        video.setAttribute('webkit-playsinline', 'true');
+        video.setAttribute('x5-playsinline', 'true'); // 微信/QQ浏览器
 
         const objectUrl = URL.createObjectURL(file);
-        video.src = objectUrl;
+        
+        let timeoutId: number | null = null;
 
         const cleanup = () =>
         {
+            if (timeoutId !== null)
+            {
+                clearTimeout(timeoutId);
+                timeoutId = null;
+            }
             URL.revokeObjectURL(objectUrl);
             video.remove();
         };
@@ -63,26 +74,56 @@ export async function generateVideoThumbnail(
 
         video.onloadedmetadata = () =>
         {
+            console.log('[generateVideoThumbnail] Metadata loaded, duration:', video.duration);
 
             const duration = video.duration;
 
+            // 如果视频时长无效（NaN 或 Infinity），尝试继续但使用默认值
+            if (!isFinite(duration) || duration <= 0)
+            {
+                console.warn('[generateVideoThumbnail] Invalid duration, attempting to proceed anyway');
+            }
+
             // 跳转到指定时间点（确保不超过视频长度）
-            video.currentTime = Math.min(seekTime, duration * 0.1);
+            const targetTime = Math.min(seekTime, Math.max(0, duration * 0.1));
+            console.log('[generateVideoThumbnail] Seeking to:', targetTime);
+            video.currentTime = targetTime;
         };
 
         video.onseeked = () =>
         {
+            console.log('[generateVideoThumbnail] Seeked to position');
 
             const videoWidth = video.videoWidth;
             const videoHeight = video.videoHeight;
             const duration = video.duration;
 
+            console.log('[generateVideoThumbnail] Video dimensions:',
+            {
+                width: videoWidth,
+                height: videoHeight,
+                duration
+            });
+
+            // 验证视频尺寸
+            if (videoWidth === 0 || videoHeight === 0)
+            {
+                console.error('[generateVideoThumbnail] Invalid video dimensions');
+                cleanup();
+                reject(new Error('Invalid video dimensions'));
+                return;
+            }
 
             // 计算缩略图尺寸
             const scale = Math.min(1, maxWidth / videoWidth);
             const thumbWidth = Math.round(videoWidth * scale);
             const thumbHeight = Math.round(videoHeight * scale);
 
+            console.log('[generateVideoThumbnail] Thumbnail size:',
+            {
+                width: thumbWidth,
+                height: thumbHeight
+            });
 
             // 创建 Canvas 绘制缩略图
             const canvas = document.createElement('canvas');
@@ -106,11 +147,12 @@ export async function generateVideoThumbnail(
                     cleanup();
                     if (blob)
                     {
+                        console.log('[generateVideoThumbnail] Thumbnail generated successfully');
                         resolve({
                             thumbnail: blob,
                             width: videoWidth,
                             height: videoHeight,
-                            duration
+                            duration: isFinite(duration) ? duration : 0
                         });
                     }
                     else
@@ -124,16 +166,44 @@ export async function generateVideoThumbnail(
             );
         };
 
-        // Add timeout to detect hanging video load
-        const timeout = setTimeout(() => {
+        // 添加超时检测
+        timeoutId = setTimeout(() =>
+        {
             console.error('[generateVideoThumbnail] Timeout waiting for video to load');
+            console.error('[generateVideoThumbnail] Video state at timeout:',
+            {
+                readyState: video.readyState,
+                networkState: video.networkState,
+                videoWidth: video.videoWidth,
+                videoHeight: video.videoHeight,
+                duration: video.duration
+            });
             cleanup();
             reject(new Error('Timeout loading video'));
-        }, 30000); // 30 second timeout
+        }, 30000) as unknown as number; // 30 second timeout
 
-        video.onloadeddata = () => {
-            clearTimeout(timeout);
+        video.onloadeddata = () =>
+        {
+            console.log('[generateVideoThumbnail] Video data loaded');
+            if (timeoutId !== null)
+            {
+                clearTimeout(timeoutId);
+            }
         };
+
+        // 设置视频源并显式加载
+        video.src = objectUrl;
+
+        // 移动设备上需要显式调用 load()
+        try
+        {
+            video.load();
+            console.log('[generateVideoThumbnail] Video load() called');
+        }
+        catch (e)
+        {
+            console.error('[generateVideoThumbnail] Failed to call video.load():', e);
+        }
     });
 }
 

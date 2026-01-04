@@ -346,11 +346,68 @@ async function sendVideo(file: File)
     {
         chatStore.showToast('Processing video...');
 
-        // Generate thumbnail
-        const { thumbnail, width, height, duration } = await generateVideoThumbnail(file);
+        let thumbnailBase64 = '';
+        let width = 0;
+        let height = 0;
+        let duration = 0;
 
-        const thumbnailArrayBuffer = await thumbnail.arrayBuffer();
-        const thumbnailBase64 = btoa(String.fromCharCode(...new Uint8Array(thumbnailArrayBuffer)));
+        // Try to generate thumbnail, but don't fail the upload if it fails
+        try
+        {
+            const thumbResult = await generateVideoThumbnail(file);
+            width = thumbResult.width;
+            height = thumbResult.height;
+            duration = thumbResult.duration;
+
+            const thumbnailArrayBuffer = await thumbResult.thumbnail.arrayBuffer();
+            thumbnailBase64 = btoa(String.fromCharCode(...new Uint8Array(thumbnailArrayBuffer)));
+
+            console.log('[sendVideo] Thumbnail generated successfully');
+        }
+        catch (thumbError: any)
+        {
+            console.warn('[sendVideo] Failed to generate thumbnail, creating placeholder instead:', thumbError);
+            console.warn('[sendVideo] Thumbnail error details:',
+            {
+                message: thumbError.message,
+                stack: thumbError.stack
+            });
+
+            // 创建默认占位图 (320x180 16:9 黑色背景)
+            const canvas = document.createElement('canvas');
+            canvas.width = 320;
+            canvas.height = 180;
+            const ctx = canvas.getContext('2d');
+            if (ctx)
+            {
+                // 黑色背景
+                ctx.fillStyle = '#1a1a1a';
+                ctx.fillRect(0, 0, 320, 180);
+                
+                // 播放图标
+                ctx.fillStyle = '#666666';
+                ctx.beginPath();
+                ctx.arc(160, 90, 30, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // 播放三角形
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.moveTo(152, 78);
+                ctx.lineTo(152, 102);
+                ctx.lineTo(175, 90);
+                ctx.closePath();
+                ctx.fill();
+            }
+            
+            const placeholderBase64 = canvas.toDataURL('image/jpeg', 0.7);
+            thumbnailBase64 = placeholderBase64.split(',')[1]; // 移除 data:image/jpeg;base64, 前缀
+            
+            width = 320;
+            height = 180;
+            
+            console.log('[sendVideo] Placeholder thumbnail created');
+        }
 
         // Create metadata
         const metadata = {
