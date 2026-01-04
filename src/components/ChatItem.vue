@@ -18,6 +18,9 @@
             <div v-if="unreadCount > 0" class="unread-badge" :class="{ 'do-not-disturb': doNotDisturb }">
                 {{ unreadCount > 99 ? '…' : unreadCount }}
             </div>
+            <div v-else-if="unreadCount < 0" class="unread-badge at-badge">
+                @
+            </div>
         </div>
 
         <!-- Info -->
@@ -141,6 +144,7 @@ function handleImageError(e: Event)
     position: absolute;
     top: -2px;
     right: -2px;
+    background-color: var(--primary-color);
     background-color: #ff3b30;
     color: white;
     width: 18px;
@@ -158,6 +162,13 @@ function handleImageError(e: Event)
 
 .unread-badge.do-not-disturb {
     background-color: var(--secondary-color);
+}
+
+.unread-badge.at-badge {
+    background-color: #ff3b30;
+    color: white;
+    font-weight: bold;
+    font-size: 16px;
 }
 
 .chat-info {

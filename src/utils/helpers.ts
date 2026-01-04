@@ -24,12 +24,14 @@ export async function generateVideoThumbnail(
     maxWidth: number = 320
 ): Promise<{ thumbnail: Blob; width: number; height: number; duration: number; }>
 {
+
     return new Promise((resolve, reject) =>
     {
         const video = document.createElement('video');
         video.preload = 'metadata';
         video.muted = true;
         video.playsInline = true;
+        video.crossOrigin = 'anonymous';
 
         const objectUrl = URL.createObjectURL(file);
         video.src = objectUrl;
@@ -42,12 +44,26 @@ export async function generateVideoThumbnail(
 
         video.onerror = () =>
         {
+            console.error('[generateVideoThumbnail] Video error event triggered');
+            console.error('[generateVideoThumbnail] Video error details:', {
+                error: video.error,
+                errorCode: video.error?.code,
+                errorMessage: video.error?.message,
+                networkState: video.networkState,
+                readyState: video.readyState,
+                videoWidth: video.videoWidth,
+                videoHeight: video.videoHeight,
+                duration: video.duration,
+                currentSrc: video.currentSrc,
+                src: video.src
+            });
             cleanup();
             reject(new Error('Failed to load video'));
         };
 
         video.onloadedmetadata = () =>
         {
+
             const duration = video.duration;
 
             // 跳转到指定时间点（确保不超过视频长度）
@@ -56,14 +72,17 @@ export async function generateVideoThumbnail(
 
         video.onseeked = () =>
         {
+
             const videoWidth = video.videoWidth;
             const videoHeight = video.videoHeight;
             const duration = video.duration;
+
 
             // 计算缩略图尺寸
             const scale = Math.min(1, maxWidth / videoWidth);
             const thumbWidth = Math.round(videoWidth * scale);
             const thumbHeight = Math.round(videoHeight * scale);
+
 
             // 创建 Canvas 绘制缩略图
             const canvas = document.createElement('canvas');
@@ -73,6 +92,7 @@ export async function generateVideoThumbnail(
             const ctx = canvas.getContext('2d');
             if (!ctx)
             {
+                console.error('[generateVideoThumbnail] Failed to get canvas context');
                 cleanup();
                 reject(new Error('Failed to get canvas context'));
                 return;
@@ -95,12 +115,24 @@ export async function generateVideoThumbnail(
                     }
                     else
                     {
+                        console.error('[generateVideoThumbnail] Failed to create thumbnail blob');
                         reject(new Error('Failed to create thumbnail blob'));
                     }
                 },
                 'image/jpeg',
                 0.7
             );
+        };
+
+        // Add timeout to detect hanging video load
+        const timeout = setTimeout(() => {
+            console.error('[generateVideoThumbnail] Timeout waiting for video to load');
+            cleanup();
+            reject(new Error('Timeout loading video'));
+        }, 30000); // 30 second timeout
+
+        video.onloadeddata = () => {
+            clearTimeout(timeout);
         };
     });
 }
@@ -159,4 +191,40 @@ export function getUserId(id: number | { value: number; }): number
 export function isPageInForeground()
 {
     return document.visibilityState === 'visible' && document.hasFocus();
+}
+
+/**
+ * Parse @ mentions from message content
+ * Matches pattern: (start of line OR space) + @ + username (a-zA-Z0-9_) + (space OR end of line)
+ * @param content - The message content to parse
+ * @returns Array of chunks (text or at mention)
+ */
+export function parseAtMentions(content: string): Array<{ type: 'text' | 'at'; content: string; username?: string; }>
+{
+    const chunks: Array<{ type: 'text' | 'at'; content: string; username?: string; }> = [];
+    const regex = /(?:^|\s)@([a-zA-Z0-9_]+)(?:\s|$)/g;
+    let lastIndex = 0;
+    let match;
+
+    while ((match = regex.exec(content)) !== null)
+    {
+        // Add text before @ mention
+        if (match.index > lastIndex)
+        {
+            chunks.push({ type: 'text', content: content.slice(lastIndex, match.index) });
+        }
+
+        // Add @ mention (including the leading space/end marker and trailing space/end marker)
+        chunks.push({ type: 'at', content: match[0], username: match[1] });
+
+        lastIndex = regex.lastIndex;
+    }
+
+    // Add remaining text after last @ mention
+    if (lastIndex < content.length)
+    {
+        chunks.push({ type: 'text', content: content.slice(lastIndex) });
+    }
+
+    return chunks;
 }

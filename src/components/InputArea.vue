@@ -3,6 +3,19 @@
         <!-- Upload progress -->
         <UploadProgressBar v-if="currentUploadTask" :task="currentUploadTask" @pause="pauseUpload" @resume="resumeUpload" @cancel="cancelCurrentUpload" />
 
+        <!-- At Mention Picker -->
+        <AtMentionPicker
+            ref="atPickerRef"
+            :visible="showAtPicker"
+            :x="atPickerX"
+            :y="atPickerY"
+            :users="chatUsers"
+            :filter="atFilter"
+            @select="handleAtSelect"
+            @close="closeAtPicker"
+            @updatePosition="handleAtPickerUpdatePosition"
+        />
+
         <!-- Reply preview -->
         <div v-if="chatStore.replyingToMessage" class="reply-preview">
             <div class="reply-preview-header">
@@ -15,7 +28,7 @@
         </div>
 
         <div class="input-area-inner">
-            <textarea id="message-in" v-model="messageText" :placeholder="placeholder" :disabled="!canSend" @keydown="handleKeyDown" @paste="handlePaste" @compositionstart="isComposing = true" @compositionend="isComposing = false"></textarea>
+            <textarea id="message-in" v-model="messageText" :placeholder="placeholder" :disabled="!canSend" @keydown="handleKeyDown" @input="handleInput" @paste="handlePaste" @blur="handleBlur" @compositionstart="isComposing = true" @compositionend="isComposing = false"></textarea>
 
             <button v-if="chatStore.isBroadcastView" :class="['anon-btn', { active: isAnonymous }]" @click="isAnonymous = !isAnonymous">
                 anon
@@ -43,18 +56,19 @@
                 </div>
             </div>
 
-            <button class="button send-btn" :disabled="!canSend" @click="send">Send</button>
+            <button class="button send-btn" :disabled="!canSend" @mousedown="handleSendMouseDown">Send</button>
         </div>
     </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted, toRaw } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted, toRaw, nextTick } from 'vue';
 import { useChatStore, useUserStore } from '@/stores';
 import { wsService } from '@/services/websocket';
+import AtMentionPicker from './AtMentionPicker.vue';
 import { sendFileMessage, initChunkedUpload, uploadChunk, completeUpload, cancelUpload } from '@/services/api';
 import { encryptMessageString, encryptMessageBytes, decryptMessageString, exportSymmetricKey, importSymmetricKey, encryptLargeFile } from '@/utils/crypto';
-import { isMobileDevice, getImageSizeFromArrayBuffer, generateVideoThumbnail, formatFileSize } from '@/utils/helpers';
+import { isMobileDevice, getImageSizeFromArrayBuffer, generateVideoThumbnail, formatFileSize, parseAtMentions } from '@/utils/helpers';
 import CloseIcon from './icons/CloseIcon.vue';
 import PlusIcon from './icons/PlusIcon.vue';
 import ImageIcon from './icons/ImageIcon.vue';
@@ -62,6 +76,7 @@ import VideoIcon from './icons/VideoIcon.vue';
 import FileIcon from './icons/FileIcon.vue';
 import UploadProgressBar from './UploadProgressBar.vue';
 import type { UploadTask } from '@/types';
+import { getUserId } from '@/utils/helpers';
 import {
     saveUploadTask,
     deleteUploadTask,
@@ -86,12 +101,25 @@ const isUploading = ref(false);
 const isPaused = ref(false);
 const currentUploadTask = ref<UploadTask | null>(null);
 
+// At mention state
+const showAtPicker = ref(false);
+const atPickerX = ref(0);
+const atPickerY = ref(0);
+const atFilter = ref('');
+const atTriggerPosition = ref(0); // Position of @ in input
+const chatUsers = ref<{ id: number; name: string }[]>([]);
+const atPickerRef = ref<InstanceType<typeof AtMentionPicker> | null>(null);
+const pickerElement = ref<HTMLElement | null>(null);
+
 const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB
 const MAX_VIDEO_SIZE = 1024 * 1024 * 1024; // 1GB
 const MAX_FILE_SIZE = 1024 * 1024 * 1024; // 1GB
 
-const canSend = computed(() => chatStore.isBroadcastView || chatStore.currentChatId !== null);
+const canSend = computed(() =>
+{
+    return chatStore.isBroadcastView || chatStore.currentChatId !== null;
+});
 
 const placeholder = computed(() =>
 {
@@ -128,7 +156,7 @@ async function checkPendingUploads()
         if (pendingTasks.length > 0)
         {
             const task = pendingTasks[0];
-            // Load the task into currentUploadTask so UploadProgressBar shows it
+            // Load task into currentUploadTask so UploadProgressBar shows it
             currentUploadTask.value = task;
             chatStore.showToast(
                 `${pendingTasks.length} incomplete upload(s) found. Click to resume.`,
@@ -259,7 +287,7 @@ async function sendImage(file: File)
 
     try
     {
-        chatStore.showToast('Processing image...', 'info');
+        chatStore.showToast('Processing image...');
 
         const arrayBuffer = await file.arrayBuffer();
         const { width, height } = await getImageSizeFromArrayBuffer(arrayBuffer);
@@ -276,7 +304,7 @@ async function sendImage(file: File)
             return;
         }
 
-        chatStore.showToast('Uploading image...', 'info');
+        chatStore.showToast('Uploading image...');
 
         await sendFileMessage(
             encrypted,
@@ -298,21 +326,29 @@ async function sendImage(file: File)
 
 async function sendVideo(file: File)
 {
-    if (!chatStore.currentChatId) return;
+    
+
+    if (!chatStore.currentChatId)
+    {
+        console.error('[sendVideo] No current chat ID');
+        return;
+    }
 
     const chatKey = chatStore.getChatKey(chatStore.currentChatId);
     if (!chatKey)
     {
+        console.error('[sendVideo] No chat key available');
         chatStore.showToast('Chat key not loaded!', 'error');
         return;
     }
 
     try
     {
-        chatStore.showToast('Processing video...', 'info');
+        chatStore.showToast('Processing video...');
 
         // Generate thumbnail
         const { thumbnail, width, height, duration } = await generateVideoThumbnail(file);
+
         const thumbnailArrayBuffer = await thumbnail.arrayBuffer();
         const thumbnailBase64 = btoa(String.fromCharCode(...new Uint8Array(thumbnailArrayBuffer)));
 
@@ -338,7 +374,8 @@ async function sendVideo(file: File)
     }
     catch (e: any)
     {
-        console.error('Video upload failed', e);
+        console.error('[sendVideo] Video upload failed:', e);
+        console.error('[sendVideo] Error stack:', e.stack);
         chatStore.showToast('Failed to upload video: ' + e.message, 'error');
     }
 }
@@ -356,7 +393,7 @@ async function sendFile(file: File)
 
     try
     {
-        chatStore.showToast('Processing file...', 'info');
+        chatStore.showToast('Processing file...');
 
         // Create metadata
         const metadata = {
@@ -688,6 +725,12 @@ function processPastedFile(file: File)
 
 function handleKeyDown(e: KeyboardEvent)
 {
+    // Let AtMentionPicker handle navigation when visible - DON'T preventDefault, just return
+    if (showAtPicker.value && (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Tab' || e.key === 'Enter' || e.key === 'Escape'))
+    {
+        return; // Let AtMentionPicker handle these keys
+    }
+
     if (e.key === 'Enter')
     {
         if (isComposing.value) return;
@@ -700,6 +743,13 @@ function handleKeyDown(e: KeyboardEvent)
     }
 }
 
+function handleSendMouseDown(event: MouseEvent)
+{
+    // Prevent default to avoid losing focus from the input
+    event.preventDefault();
+    send();
+}
+
 async function send()
 {
     const text = messageText.value.trim();
@@ -709,6 +759,178 @@ async function send()
         sendBroadcast(text);
     else
         await sendMessage(text);
+
+    // Refocus input after sending
+    nextTick(() =>
+    {
+        const textarea = document.getElementById('message-in') as HTMLTextAreaElement;
+        if (textarea)
+        {
+            textarea.focus();
+        }
+    });
+}
+
+function handleInput(e: Event)
+{
+    const target = e.target as HTMLTextAreaElement;
+    const text = target.value;
+    const cursorPosition = target.selectionStart;
+
+    // Check if we should close at picker
+    if (showAtPicker.value)
+    {
+        // Check if @ was deleted
+        if (cursorPosition <= atTriggerPosition.value)
+        {
+            closeAtPicker();
+            return;
+        }
+
+        // Get text after @
+        const afterAt = text.slice(atTriggerPosition.value + 1, cursorPosition);
+
+        // Check if user typed a space (which would complete @ mention)
+        if (afterAt.includes(' '))
+        {
+            closeAtPicker();
+            return;
+        }
+
+        // Check if user typed an invalid character (not a-z, A-Z, 0-9, _)
+        const invalidCharMatch = afterAt.match(/[^a-zA-Z0-9_]/);
+        if (invalidCharMatch)
+        {
+            closeAtPicker();
+            return;
+        }
+
+        // Update filter
+        atFilter.value = afterAt;
+
+        // Update picker position to follow cursor
+        updateAtPickerPosition(target, cursorPosition);
+    }
+    else
+    {
+        // Check if we just typed @ with a space before it
+        if (cursorPosition > 0 && text[cursorPosition - 1] === '@' && (cursorPosition === 1 || text[cursorPosition - 2] === ' '))
+        {
+            openAtPicker(target, cursorPosition - 1);
+        }
+    }
+}
+
+async function openAtPicker(textarea: HTMLTextAreaElement, atPosition: number)
+{
+    const chat = chatStore.currentChat;
+    if (!chat || !chat.parsedOtherIds || !chat.parsedOtherNames)
+    {
+        return;
+    }
+
+    // Get chat members
+    const users = chat.parsedOtherIds.map((id, index) => ({
+        id,
+        name: chat.parsedOtherNames![index]
+    }));
+
+    // Filter out current user
+    const currentUserId = userStore.currentUser ? getUserId(userStore.currentUser.id) : null;
+    const filteredUsers = users.filter(u => u.id !== currentUserId);
+
+    if (filteredUsers.length === 0)
+    {
+        return;
+    }
+
+    // Calculate picker position - ABOVE cursor with more space
+    const rect = textarea.getBoundingClientRect();
+    const lineHeight = parseInt(getComputedStyle(textarea).lineHeight) || 20;
+    const textareaText = textarea.value;
+    const linesBeforeAt = textareaText.slice(0, atPosition).split('\n').length;
+    const approximateY = rect.top + (linesBeforeAt - 1) * lineHeight - 220; // Position well above cursor
+
+    atTriggerPosition.value = atPosition;
+    atFilter.value = '';
+    chatUsers.value = filteredUsers;
+    atPickerX.value = rect.left;
+    atPickerY.value = approximateY;
+    showAtPicker.value = true;
+}
+
+function closeAtPicker()
+{
+    showAtPicker.value = false;
+    atFilter.value = '';
+}
+
+function handleBlur()
+{
+    // Close at picker when input loses focus
+    closeAtPicker();
+}
+
+function updateAtPickerPosition(textarea: HTMLTextAreaElement, cursorPosition: number)
+{
+    const rect = textarea.getBoundingClientRect();
+    const lineHeight = parseInt(getComputedStyle(textarea).lineHeight) || 20;
+    const textareaText = textarea.value;
+    const linesBeforeCursor = textareaText.slice(0, cursorPosition).split('\n').length;
+
+    // Calculate cursor position in viewport
+    const cursorY = rect.top + (linesBeforeCursor - 1) * lineHeight;
+
+    // Get actual picker height from element
+    const pickerHeight = pickerElement.value?.offsetHeight || 200;
+
+    // Position picker so its bottom center is near the cursor
+    const approximateY = cursorY - pickerHeight;
+
+    atPickerX.value = rect.left;
+    atPickerY.value = approximateY;
+}
+
+function handleAtPickerUpdatePosition()
+{
+    // Use nextTick to ensure DOM is fully updated before getting picker element
+    nextTick(() =>
+    {
+        // Recalculate position with actual picker height
+        const textarea = document.getElementById('message-in') as HTMLTextAreaElement;
+        if (textarea && showAtPicker.value)
+        {
+            // Update picker element ref from AtMentionPicker component
+            if (atPickerRef.value)
+            {
+                pickerElement.value = (atPickerRef.value as any).pickerElement;
+            }
+            updateAtPickerPosition(textarea, textarea.selectionStart);
+        }
+    });
+}
+
+function handleAtSelect(user: { id: number; name: string })
+{
+    const textarea = document.getElementById('message-in') as HTMLTextAreaElement;
+    if (!textarea) return;
+
+    const beforeAt = messageText.value.slice(0, atTriggerPosition.value);
+    const afterAt = messageText.value.slice(atTriggerPosition.value + 1 + atFilter.value.length);
+
+    // Insert: space + @ + username + space
+    const newText = beforeAt + ' @' + user.name + ' ' + afterAt;
+    messageText.value = newText;
+
+    // Set cursor position after inserted text
+    const newCursorPosition = atTriggerPosition.value + user.name.length + 3;
+    nextTick(() =>
+    {
+        textarea.focus();
+        textarea.setSelectionRange(newCursorPosition, newCursorPosition);
+    });
+
+    closeAtPicker();
 }
 
 function sendBroadcast(text: string)
@@ -736,11 +958,29 @@ async function sendMessage(text: string)
         const encrypted = await encryptMessageString(text, chatKey);
         const replyTo = chatStore.replyingToMessage?.id || null;
 
+        // Parse @ mentions from message to get user IDs
+        const mentions = parseAtMentions(text);
+        const atUserIds: number[] = [];
+        for (const mention of mentions)
+        {
+            if (mention.type === 'at' && mention.username)
+            {
+                const chat = chatStore.currentChat;
+                if (!chat || !chat.parsedOtherIds || !chat.parsedOtherNames) continue;
+                const userIndex = chat.parsedOtherNames!.indexOf(mention.username!);
+                if (userIndex !== -1)
+                {
+                    atUserIds.push(chat.parsedOtherIds![userIndex]);
+                }
+            }
+        }
+
         wsService.sendPacket('send_message', {
             chatId: chatStore.currentChatId,
             message: encrypted,
             type: 'text',
-            replyTo
+            replyTo,
+            atUserIds
         });
         messageText.value = '';
         chatStore.clearReplyingTo();

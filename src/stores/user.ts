@@ -103,7 +103,6 @@ export const useUserStore = defineStore('user', () =>
             await saveLoginToStorage();
             
             wsService.notifyLoggedIn();
-            console.log('Private key decrypted successfully');
             return true;
         }
         catch (e)

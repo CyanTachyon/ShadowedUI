@@ -30,7 +30,6 @@ class WebSocketService
 
         this.socket.onopen = () =>
         {
-            console.log('Connected to WebSocket');
             this.onConnectCallback?.();
         };
 
@@ -46,7 +45,6 @@ class WebSocketService
 
     private handleDisconnect(): void
     {
-        console.log('Disconnected');
         this.isLoggedIn = false;
         useChatStore().showToast('Connection lost. will reload the page...', 'error');
         setTimeout(() => window.location.reload(), 1500);

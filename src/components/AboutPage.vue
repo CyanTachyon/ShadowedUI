@@ -51,21 +51,6 @@
                     </div>
                 </div>
 
-                <!-- Donation Section -->
-                <div v-if="projectInfo.donation.wechatQrCode || projectInfo.donation.alipayQrCode" class="detail-section">
-                    <h2 class="section-title">Donation</h2>
-                    <div class="donation-container">
-                        <div v-if="projectInfo.donation.wechatQrCode" class="donation-item">
-                            <div class="donation-label">WeChat Pay</div>
-                            <img :src="projectInfo.donation.wechatQrCode" alt="WeChat Pay QR Code" class="donation-qr" />
-                        </div>
-                        <div v-if="projectInfo.donation.alipayQrCode" class="donation-item">
-                            <div class="donation-label">Alipay</div>
-                            <img :src="projectInfo.donation.alipayQrCode" alt="Alipay QR Code" class="donation-qr" />
-                        </div>
-                    </div>
-                </div>
-
                 <!-- Donors Section -->
                 <div v-if="projectInfo.donors && projectInfo.donors.length > 0" class="detail-section">
                     <h2 class="section-title">Donors</h2>
@@ -79,6 +64,21 @@
                                 <div class="donor-username">{{ donor.username }}</div>
                                 <div class="donor-amount">¥{{ formatDonationAmount(donor.donationAmount) }}</div>
                             </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Donation Section -->
+                <div v-if="projectInfo.donation.wechatQrCode || projectInfo.donation.alipayQrCode" class="detail-section">
+                    <h2 class="section-title">Donation</h2>
+                    <div class="donation-container">
+                        <div v-if="projectInfo.donation.wechatQrCode" class="donation-item">
+                            <div class="donation-label">WeChat Pay</div>
+                            <img :src="projectInfo.donation.wechatQrCode" alt="WeChat Pay QR Code" class="donation-qr" />
+                        </div>
+                        <div v-if="projectInfo.donation.alipayQrCode" class="donation-item">
+                            <div class="donation-label">Alipay</div>
+                            <img :src="projectInfo.donation.alipayQrCode" alt="Alipay QR Code" class="donation-qr" />
                         </div>
                     </div>
                 </div>

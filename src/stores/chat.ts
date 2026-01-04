@@ -290,11 +290,12 @@ export const useChatStore = defineStore('chat', () =>
     }
 
     // Edit or delete (withdraw) a message
-    function editMessage(messageId: number, message: string | null): void
+    function editMessage(messageId: number, message: string | null, atUserIds: number[] = []): void
     {
         wsService.sendPacket('edit_message', {
             messageId,
-            message
+            message,
+            atUserIds
         });
     }
 
