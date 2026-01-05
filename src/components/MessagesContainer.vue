@@ -89,7 +89,7 @@ function handleVisibilityChange(): void
 // 检查当前可见的消息并标记已读
 function checkAndMarkVisibleMessages(): void
 {
-    if (!containerRef.value || !isPrivateChatWithBurn.value) return;
+    if (!containerRef.value || !isPrivateChat.value) return;
     
     const messageElements = containerRef.value.querySelectorAll('[data-message-id]');
     const containerRect = containerRef.value.getBoundingClientRect();
@@ -100,8 +100,7 @@ function checkAndMarkVisibleMessages(): void
         const rect = el.getBoundingClientRect();
         
         // 检查元素是否在容器可视区域内（带20px边距）
-        const isVisible = rect.bottom >= containerRect.top - 20 && 
-                          rect.top <= containerRect.bottom + 20;
+        const isVisible = rect.bottom >= containerRect.top - 20 && rect.top <= containerRect.bottom + 20;
         
         if (!isVisible) return;
         
@@ -224,12 +223,12 @@ watch(() => chatStore.currentChatMessages.length, (newLength, oldLength) =>
     }
 });
 
-// 当前聊天是否是私聊且开启了阅后即焚
-const isPrivateChatWithBurn = computed(() =>
+// 当前聊天是否是私聊
+const isPrivateChat = computed(() =>
 {
     if (!chatStore.currentChatId) return false;
     const chat = chatStore.chats.find(c => c.chatId === chatStore.currentChatId);
-    return chat?.isPrivate && chat?.burnTime != null && chat.burnTime > 0;
+    return chat?.isPrivate || false;
 });
 
 // 当前用户ID
@@ -247,7 +246,7 @@ function setupReadObserver()
         readObserver.disconnect();
     }
 
-    if (!containerRef.value || !isPrivateChatWithBurn.value) return;
+    if (!containerRef.value || !isPrivateChat.value) return;
 
     readObserver = new IntersectionObserver(
         (entries) =>
@@ -303,7 +302,7 @@ watch(() => chatStore.currentChatId, () =>
 // 当消息列表变化时，重新设置观察器
 watch(() => chatStore.currentChatMessages, () =>
 {
-    if (isPrivateChatWithBurn.value)
+    if (isPrivateChat.value)
     {
         // 延迟确保DOM更新
         setTimeout(() => observeMessageElements(), 100);

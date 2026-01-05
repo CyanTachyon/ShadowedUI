@@ -108,6 +108,15 @@
                     <line x1="15" y1="9" x2="15.01" y2="9"></line>
                 </svg>
             </div>
+            <!-- Message Status Icon -->
+            <CloseIcon v-if="showUnreadIcon" class="message-status-icon" />
+            <svg v-else-if="showReadNoBurnIcon" class="message-status-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+            <svg v-else-if="showBurnCountdown" class="message-status-icon" width="16" height="16" viewBox="0 0 24 24" :title="`自焚倒计时: ${remainingBurnSeconds}秒`">
+                <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" fill="none" />
+                <path :d="countdownArcPath" fill="currentColor" />
+            </svg>
         </div>
     </div>
  
@@ -128,7 +137,7 @@
 </template>
  
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, watch, onUnmounted } from 'vue';
 import type { Message } from '@/types';
 import { useChatStore, useUserStore, useUIStore } from '@/stores';
 import { decryptMessageString, decryptMessageBytes } from '@/utils/crypto';
@@ -147,6 +156,7 @@ import DownloadIcon from './icons/DownloadIcon.vue';
 import PlayIcon from './icons/PlayIcon.vue';
 import FileIcon from './icons/FileIcon.vue';
 import DonorBadgeIcon from './icons/DonorBadgeIcon.vue';
+import CloseIcon from './icons/CloseIcon.vue';
 import { downloadFile as downloadFileApi } from '@/services/api';
 import { formatFileSize, formatDuration } from '@/utils/helpers';
 import type { VideoMetadata, FileMetadata } from '@/types';
@@ -201,7 +211,11 @@ const emojiPickerY = ref(0);
 const reactionsPopupVisible = ref(false);
 const reactionsPopupX = ref(0);
 const reactionsPopupY = ref(0);
- 
+
+// Burn countdown state
+const remainingBurnSeconds = ref(0);
+let countdownTimer: ReturnType<typeof setInterval> | null = null;
+
 // Touch handling for long press
 let touchTimer: ReturnType<typeof setTimeout> | null = null;
 let touchStartX = 0;
@@ -257,7 +271,68 @@ const topReactions = computed(() =>
         .sort((a, b) => b.userIds.length - a.userIds.length)
         .slice(0, 3);
 });
+
+// 获取当前聊天
+const currentChat = computed(() => chatStore.chats.find(c => c.chatId === props.message.chatId));
  
+// 是否显示未读图标（私聊 + 未读）
+const showUnreadIcon = computed(() =>
+{
+    return currentChat.value?.isPrivate && props.message.readAt == null;
+});
+
+// 是否显示已读无自焚图标（私聊 + 已读 + 无自焚）
+const showReadNoBurnIcon = computed(() =>
+{
+    return currentChat.value?.isPrivate &&
+           props.message.readAt != null &&
+           (currentChat.value.burnTime == null || currentChat.value.burnTime === 0);
+});
+
+// 是否显示阅后即焚倒计时
+const showBurnCountdown = computed(() =>
+{
+    // 私聊 + 开启阅后即焚 + 已读
+    return currentChat.value?.isPrivate &&
+           currentChat.value.burnTime != null &&
+           currentChat.value.burnTime !== 0 &&
+           props.message.readAt != null;
+});
+
+// 计算SVG扇形路径
+const countdownArcPath = computed(() =>
+{
+    if (remainingBurnSeconds.value <= 0) return '';
+    
+    const chat = currentChat.value;
+    if (!chat || !chat.burnTime) return '';
+    
+    const totalSeconds = Math.floor(chat.burnTime / 1000);
+    const ratio = remainingBurnSeconds.value / totalSeconds;
+    
+    // 计算扇形角度（从12点钟方向开始，顺时针）
+    const startAngle = -Math.PI / 2; // 12点钟方向
+    const endAngle = startAngle + (ratio * 2 * Math.PI);
+    
+    const cx = 12, cy = 12, r = 10;
+    
+    // 计算起点和终点
+    const x1 = cx + r * Math.cos(startAngle);
+    const y1 = cy + r * Math.sin(startAngle);
+    const x2 = cx + r * Math.cos(endAngle);
+    const y2 = cy + r * Math.sin(endAngle);
+    
+    // 如果是完整圆，使用圆弧命令
+    if (ratio >= 1)
+    {
+        return `M ${cx} ${cy - r} A ${r} ${r} 0 1 1 ${cx} ${cy + r} A ${r} ${r} 0 1 1 ${cx} ${cy - r}`;
+    }
+    
+    // 绘制扇形：从圆心到起点，圆弧到终点，回到圆心
+    const largeArcFlag = ratio > 0.5 ? 1 : 0;
+    return `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${largeArcFlag} 1 ${x2} ${y2} Z`;
+});
+
 // Parse @ mentions from decrypted content
 const contentChunks = computed(() =>
 {
@@ -683,9 +758,69 @@ async function decryptMessage()
     }
 }
  
-onMounted(decryptMessage);
+// 更新倒计时
+function updateCountdown()
+{
+    if (!showBurnCountdown.value) return;
+    
+    const chat = currentChat.value;
+    if (!chat || !chat.burnTime || !props.message.readAt) return;
+    
+    const readTime = props.message.readAt;
+    const burnTime = chat.burnTime;
+    const currentTime = Date.now();
+    
+    const elapsed = currentTime - readTime;
+    const remaining = burnTime - elapsed;
+    
+    if (remaining <= 0)
+    {
+        remainingBurnSeconds.value = 0;
+    }
+    else
+    {
+        remainingBurnSeconds.value = Math.floor(remaining / 1000);
+    }
+}
+
+// 启动倒计时定时器
+function startCountdown()
+{
+    if (countdownTimer) clearInterval(countdownTimer);
+    
+    updateCountdown();
+    
+    if (showBurnCountdown.value && remainingBurnSeconds.value > 0)
+    {
+        countdownTimer = setInterval(updateCountdown, 1000);
+    }
+}
+
+// 清理倒计时定时器
+function stopCountdown()
+{
+    if (countdownTimer)
+    {
+        clearInterval(countdownTimer);
+        countdownTimer = null;
+    }
+}
+
+onMounted(() =>
+{
+    decryptMessage();
+    startCountdown();
+});
+
 watch(() => ({ content: props.message.content, type: props.message.type, replyTo: props.message.replyTo }), decryptMessage);
- 
+watch(() => ({ chatId: props.message.chatId, readAt: props.message.readAt }), () =>
+{
+    stopCountdown();
+    startCountdown();
+});
+
+onUnmounted(stopCountdown);
+
 async function decryptReplyContent(replyTo: { content: string; type?: 'TEXT' | 'IMAGE' | 'VIDEO' | 'FILE'; senderId: number; senderName: string; }): Promise<string>
 {
     if (!chatKey.value)
@@ -1430,7 +1565,15 @@ async function downloadFile()
     line-height: 1;
     font-family: 'Noto Color Emoji';
 }
- 
+
+.message-status-icon {
+    width: 16px;
+    height: 16px;
+    opacity: 0.5;
+    transition: opacity 0.15s ease;
+    margin-left: -5px;
+}
+
 @keyframes fadeIn {
     from {
         opacity: 0;

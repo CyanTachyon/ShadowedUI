@@ -144,7 +144,6 @@ function handleImageError(e: Event)
     position: absolute;
     top: -2px;
     right: -2px;
-    background-color: var(--primary-color);
     background-color: #ff3b30;
     color: white;
     width: 18px;
