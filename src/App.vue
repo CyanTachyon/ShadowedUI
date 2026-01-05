@@ -124,6 +124,8 @@ function setupWebSocketHandlers()
 
     wsService.on('public_key_by_username', () => {});
 
+    wsService.on('time', (data) => uiStore.updateServerTime(data.t));
+
     wsService.onConnect(async () =>
     {
         if (userStore.authToken && userStore.username) userStore.relogin();

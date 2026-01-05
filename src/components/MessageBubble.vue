@@ -113,7 +113,7 @@
             <svg v-else-if="showReadNoBurnIcon" class="message-status-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <polyline points="20 6 9 17 4 12"></polyline>
             </svg>
-            <svg v-else-if="showBurnCountdown" class="message-status-icon" width="16" height="16" viewBox="0 0 24 24" :title="`自焚倒计时: ${remainingBurnSeconds}秒`">
+            <svg v-else-if="showBurnCountdown" class="message-status-icon" width="16" height="16" viewBox="0 0 24 24"">
                 <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" fill="none" />
                 <path :d="countdownArcPath" fill="currentColor" />
             </svg>
@@ -281,53 +281,33 @@ const showUnreadIcon = computed(() =>
     return currentChat.value?.isPrivate && props.message.readAt == null;
 });
 
-// 是否显示已读无自焚图标（私聊 + 已读 + 无自焚）
-const showReadNoBurnIcon = computed(() =>
-{
-    return currentChat.value?.isPrivate &&
-           props.message.readAt != null &&
-           (currentChat.value.burnTime == null || currentChat.value.burnTime === 0);
-});
 
-// 是否显示阅后即焚倒计时
-const showBurnCountdown = computed(() =>
-{
-    // 私聊 + 开启阅后即焚 + 已读
-    return currentChat.value?.isPrivate &&
-           currentChat.value.burnTime != null &&
-           currentChat.value.burnTime !== 0 &&
-           props.message.readAt != null;
-});
+const showBurnCountdown = computed(() => typeof props.message.readAt === 'number' && typeof props.message.burn === 'number');
+const showReadNoBurnIcon = computed(() => currentChat.value?.isPrivate && typeof props.message.readAt === 'number' && !showBurnCountdown.value);
 
 // 计算SVG扇形路径
 const countdownArcPath = computed(() =>
 {
-    if (remainingBurnSeconds.value <= 0) return '';
-    
-    const chat = currentChat.value;
-    if (!chat || !chat.burnTime) return '';
-    
-    const totalSeconds = Math.floor(chat.burnTime / 1000);
+    if (remainingBurnSeconds.value <= 0 || !showBurnCountdown.value) return '';
+
+    const totalSeconds = Math.floor((props.message.burn! - props.message.readAt!) / 1000);
     const ratio = remainingBurnSeconds.value / totalSeconds;
-    
+
     // 计算扇形角度（从12点钟方向开始，顺时针）
     const startAngle = -Math.PI / 2; // 12点钟方向
     const endAngle = startAngle + (ratio * 2 * Math.PI);
-    
+
     const cx = 12, cy = 12, r = 10;
-    
+
     // 计算起点和终点
     const x1 = cx + r * Math.cos(startAngle);
     const y1 = cy + r * Math.sin(startAngle);
     const x2 = cx + r * Math.cos(endAngle);
     const y2 = cy + r * Math.sin(endAngle);
-    
+
     // 如果是完整圆，使用圆弧命令
-    if (ratio >= 1)
-    {
-        return `M ${cx} ${cy - r} A ${r} ${r} 0 1 1 ${cx} ${cy + r} A ${r} ${r} 0 1 1 ${cx} ${cy - r}`;
-    }
-    
+    if (ratio >= 1) return `M ${cx} ${cy - r} A ${r} ${r} 0 1 1 ${cx} ${cy + r} A ${r} ${r} 0 1 1 ${cx} ${cy - r}`;
+
     // 绘制扇形：从圆心到起点，圆弧到终点，回到圆心
     const largeArcFlag = ratio > 0.5 ? 1 : 0;
     return `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${largeArcFlag} 1 ${x2} ${y2} Z`;
@@ -762,38 +742,20 @@ async function decryptMessage()
 function updateCountdown()
 {
     if (!showBurnCountdown.value) return;
-    
-    const chat = currentChat.value;
-    if (!chat || !chat.burnTime || !props.message.readAt) return;
-    
-    const readTime = props.message.readAt;
-    const burnTime = chat.burnTime;
-    const currentTime = Date.now();
-    
-    const elapsed = currentTime - readTime;
-    const remaining = burnTime - elapsed;
-    
-    if (remaining <= 0)
-    {
-        remainingBurnSeconds.value = 0;
-    }
-    else
-    {
-        remainingBurnSeconds.value = Math.floor(remaining / 1000);
-    }
+    const currentTime = Date.now() + uiStore.serverTimeOffset;
+    const remaining = props.message.burn! - currentTime;
+    if (remaining <= 0) remainingBurnSeconds.value = 0;
+    else remainingBurnSeconds.value = Math.ceil(remaining / 1000);
 }
 
 // 启动倒计时定时器
 function startCountdown()
 {
     if (countdownTimer) clearInterval(countdownTimer);
-    
     updateCountdown();
     
     if (showBurnCountdown.value && remainingBurnSeconds.value > 0)
-    {
         countdownTimer = setInterval(updateCountdown, 1000);
-    }
 }
 
 // 清理倒计时定时器
@@ -813,11 +775,7 @@ onMounted(() =>
 });
 
 watch(() => ({ content: props.message.content, type: props.message.type, replyTo: props.message.replyTo }), decryptMessage);
-watch(() => ({ chatId: props.message.chatId, readAt: props.message.readAt }), () =>
-{
-    stopCountdown();
-    startCountdown();
-});
+watch(() => ({ chatId: props.message.chatId, readAt: props.message.readAt, burn: props.message.burn }), startCountdown);
 
 onUnmounted(stopCountdown);
 

@@ -53,7 +53,8 @@ export interface Message
     type: 'TEXT' | 'IMAGE' | 'VIDEO' | 'FILE';
     time: string;
     replyTo?: ReplyInfo;
-    readAt?: number | null; // 已读时间戳，null或undefined表示未读
+    readAt?: number | null;
+    burn?: number | null;
     reactions?: Reaction[];
 }
 

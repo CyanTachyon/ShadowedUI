@@ -21,6 +21,13 @@ export const useUIStore = defineStore('ui', () =>
     const showAddMenu = ref(false);
     const showUserProfileModal = ref(false);
     const showMomentSettingsModal = ref(false);
+    const serverTimeOffset = ref(0);
+
+    function updateServerTime(serverTime: number): void
+    {
+        const localTime = Date.now();
+        serverTimeOffset.value = serverTime - localTime;
+    }
 
     // Kick member modal state
     const kickMemberTarget = ref<{ chatId: number; chatName: string; userId: number; username: string; } | null>(null);
@@ -129,6 +136,9 @@ export const useUIStore = defineStore('ui', () =>
         kickMemberTarget,
         deleteChatTarget,
         profileUserId,
+        chatBackground,
+        serverTimeOffset,
+        updateServerTime,
         toggleTheme,
         initTheme,
         setViewState,
@@ -137,7 +147,6 @@ export const useUIStore = defineStore('ui', () =>
         openDeleteChatModal,
         closeDeleteChatModal,
         navigateToProfile,
-        chatBackground,
         setChatBackground
     };
 });
