@@ -70,7 +70,7 @@ export const useChatStore = defineStore('chat', () =>
         // 发送浏览器通知
         if ('Notification' in window && !isPageInForeground() && Notification.permission === 'granted')
         {
-            const notification = new Notification('Shadow Chat', {
+            const notification = new Notification('ShadowedChat', {
                 body: message,
                 icon: '/icon.png',
                 tag: `toast-${id}`,
@@ -261,7 +261,7 @@ export const useChatStore = defineStore('chat', () =>
         // 只对新消息触发通知，不包括删除、更新或静默消息
         if (isDeleteMessage || isExistingMessage || data.silent) return;
 
-        if (msg.chatId !== currentChatId.value || !isPageInForeground())
+        if ((msg.chatId !== currentChatId.value || !isPageInForeground()) && msg.senderId !== useUserStore().currentUser?.id)
         {
             const chat = chats.value.find(c => c.chatId === msg.chatId);
             if (!chat) return;
