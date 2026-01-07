@@ -121,7 +121,6 @@ function getUserName(userId: number): string
     border: 1px solid var(--border-color);
     border-radius: 8px;
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
-    min-width: 250px;
     max-width: 350px;
     max-height: 300px;
     overflow-y: auto;
