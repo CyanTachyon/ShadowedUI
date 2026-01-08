@@ -14,7 +14,8 @@
                 <PlusIcon />
             </button>
             <div v-if="uiStore.showAddMenu" class="dropdown-menu show right">
-                <div class="menu-item" @click="openAddFriend">Add Friend</div>
+                <div class="menu-item" @click="openSearchUserById">Search User by ID</div>
+                <div class="menu-item" @click="openSearchUserByName">Search User by Name</div>
                 <div class="menu-item" @click="openCreateGroup">Create Group Chat</div>
             </div>
         </div>
@@ -43,10 +44,16 @@ function toggleAddMenu()
     uiStore.showAddMenu = !uiStore.showAddMenu;
 }
 
-function openAddFriend()
+function openSearchUserById()
 {
     uiStore.showAddMenu = false;
-    uiStore.showAddFriendModal = true;
+    uiStore.showSearchUserByIdModal = true;
+}
+
+function openSearchUserByName()
+{
+    uiStore.showAddMenu = false;
+    uiStore.showSearchUserByNameModal = true;
 }
 
 function openCreateGroup()
@@ -110,7 +117,7 @@ function openCreateGroup()
     border: 1px solid var(--border-color);
     border-radius: 6px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-    width: 160px;
+    width: 180px;
     display: flex;
     z-index: 100;
     flex-direction: column;

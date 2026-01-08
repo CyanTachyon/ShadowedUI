@@ -21,6 +21,8 @@
         <KickMemberModal />
         <DeleteChatModal />
         <MomentSettingsModal />
+        <SearchUserByIdModal />
+        <SearchUserByNameModal />
     </div>
 </template>
 
@@ -40,6 +42,8 @@ import ResetPasswordModal from '@/components/modals/ResetPasswordModal.vue';
 import KickMemberModal from '@/components/modals/KickMemberModal.vue';
 import DeleteChatModal from '@/components/modals/DeleteChatModal.vue';
 import MomentSettingsModal from '@/components/modals/MomentSettingsModal.vue';
+import SearchUserByIdModal from '@/components/modals/SearchUserByIdModal.vue';
+import SearchUserByNameModal from '@/components/modals/SearchUserByNameModal.vue';
 
 const userStore = useUserStore();
 const chatStore = useChatStore();

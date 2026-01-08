@@ -375,6 +375,28 @@ export async function fetchUserInfo(userId: number): Promise<{ id: number; usern
     }
 }
 
+export async function fetchUserInfoByUsername(username: string): Promise<{ id: number; username: string; signature: string | null; isDonor: boolean; } | null>
+{
+    try
+    {
+        const res = await fetch(`/api/user/info?username=${encodeURIComponent(username)}`, {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        if (res.status === 200)
+        {
+            const data = await res.json();
+            return data;
+        }
+        return null;
+    }
+    catch (e)
+    {
+        console.error('Failed to fetch user info by username:', e);
+        return null;
+    }
+}
+
 export async function fetchProjectInfo(): Promise<ProjectInfo | null>
 {
     try

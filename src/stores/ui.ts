@@ -21,6 +21,8 @@ export const useUIStore = defineStore('ui', () =>
     const showAddMenu = ref(false);
     const showUserProfileModal = ref(false);
     const showMomentSettingsModal = ref(false);
+    const showSearchUserByIdModal = ref(false);
+    const showSearchUserByNameModal = ref(false);
     const serverTimeOffset = ref(0);
 
     function updateServerTime(serverTime: number): void
@@ -133,6 +135,8 @@ export const useUIStore = defineStore('ui', () =>
         showAddMenu,
         showUserProfileModal,
         showMomentSettingsModal,
+        showSearchUserByIdModal,
+        showSearchUserByNameModal,
         kickMemberTarget,
         deleteChatTarget,
         profileUserId,
