@@ -230,7 +230,7 @@ export const useUserStore = defineStore('user', () =>
     {
         if (!currentUser.value) return '';
         const id = userId.value;
-        return `/api/user/${id}/avatar?t=${Date.now()}`;
+        return `/api/user/${id}/avatar`;
     }
 
     return {

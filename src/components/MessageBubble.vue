@@ -1,4 +1,13 @@
 <template>
+    <!-- System message (senderId is null) -->
+    <template v-if="!message.senderId">
+        <div class="system-message">
+            {{ message.content }}
+        </div>
+    </template>
+
+    <!-- Regular message -->
+    <template v-else>
     <div :class="['message', isMe ? 'sent' : 'received']" :style="{ marginLeft: showSender ? '40px' : '0' }" v-bind="$attrs" @contextmenu.prevent="handleContextMenu" @touchstart="handleTouchStart" @touchend="handleTouchEnd" @touchmove="handleTouchMove">
         <!-- Sender info for group chats -->
         <template v-if="showSender">
@@ -119,6 +128,7 @@
             </svg>
         </div>
     </div>
+    </template>
  
     <!-- Emoji Picker -->
     <EmojiPicker :visible="emojiPickerVisible" :x="emojiPickerX" :y="emojiPickerY" @close="emojiPickerVisible = false" @select="handleEmojiSelect" />
@@ -551,7 +561,7 @@ async function copyMessage()
  
 function openUserProfile()
 {
-    if (isMe.value) return;
+    if (isMe.value || !props.message.senderId) return;
     uiStore.navigateToProfile(props.message.senderId);
 }
  
@@ -646,6 +656,7 @@ function createPlaceholder(width: number, height: number): string
  
 async function decryptMessage()
 {
+    if (!props?.message?.senderId) return;
     const key = chatKey.value;
     if (!key)
     {
@@ -1052,6 +1063,20 @@ async function downloadFile()
     font-display: swap;
 }
  
+/* System message style - centered, gray background, small font */
+.system-message {
+    max-width: 80%;
+    padding: 6px 12px;
+    margin: 0px auto;
+    background-color: var(--border-color);
+    border-radius: 4px;
+    font-size: 0.85em;
+    color: var(--text-color);
+    text-align: center;
+    word-break: break-word;
+    animation: fadeIn 0.3s ease;
+}
+
 .message {
     max-width: 70%;
     padding: 0.5rem 1rem;

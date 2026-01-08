@@ -200,7 +200,7 @@ watch(() => chatStore.replyingToMessage, async (newMessage) =>
     }
 }, { immediate: true });
 
-async function decryptReplyContent(replyTo: { content: string; type: string; senderId: number; senderName?: string; }, chatKey: CryptoKey): Promise<string>
+async function decryptReplyContent(replyTo: { content: string; type: string; }, chatKey: CryptoKey): Promise<string>
 {
     try
     {

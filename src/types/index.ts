@@ -46,15 +46,15 @@ export interface Message
 {
     id: number;
     chatId: number;
-    senderId: number;
-    senderName?: string;
-    senderIsDonor?: boolean;
+    senderId: number | null;
+    senderName: string | null;
+    senderIsDonor: boolean;
     content: string;
     type: 'TEXT' | 'IMAGE' | 'VIDEO' | 'FILE';
     time: string;
-    replyTo?: ReplyInfo;
-    readAt?: number | null;
-    burn?: number | null;
+    replyTo: ReplyInfo | null;
+    readAt: number | null;
+    burn: number | null;
     reactions?: Reaction[];
 }
 
