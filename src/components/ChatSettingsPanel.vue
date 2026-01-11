@@ -7,6 +7,21 @@
             </button>
         </div>
         <div class="settings-content" v-if="members.length">
+            <!-- Group Avatar Section (Group only) -->
+            <div v-if="!isPrivate && isOwner && chatId" class="settings-section">
+                <div class="section-title">Group Avatar</div>
+                <div class="group-avatar-wrapper">
+                    <img :src="getGroupAvatarUrl(chatId)" class="group-avatar" alt="Group Avatar" />
+                    <label for="group-avatar-upload" class="avatar-upload-label" title="Upload Group Avatar">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+                            <circle cx="12" cy="13" r="4"></circle>
+                        </svg>
+                    </label>
+                    <input id="group-avatar-upload" ref="groupAvatarInput" type="file" accept="image/*" style="display: none" @change="uploadGroupAvatar" />
+                </div>
+            </div>
+
             <!-- Chat Name Section (Group only) -->
             <div v-if="!isPrivate" class="settings-section">
                 <div class="section-title">Chat Name</div>
@@ -104,7 +119,8 @@
 import { ref, computed, watch, onMounted } from 'vue';
 import { useChatStore, useUserStore, useUIStore } from '@/stores';
 import { wsService } from '@/services/websocket';
-import { getAvatarUrl, getUserId } from '@/utils/helpers';
+import { getAvatarUrl, getGroupAvatarUrl, getUserId } from '@/utils/helpers';
+import { uploadGroupAvatar as uploadGroupAvatarApi } from '@/services/api';
 import
     {
         encryptSymmetricKey,
@@ -120,6 +136,7 @@ const chatStore = useChatStore();
 const userStore = useUserStore();
 const uiStore = useUIStore();
 
+const groupAvatarInput = ref<HTMLInputElement | null>(null);
 const newName = ref('');
 const momentPermission = ref<MomentPermission | null>(null);
 const loadingPermission = ref(false);
@@ -174,6 +191,8 @@ const chatName = computed(() =>
 });
 
 const members = computed(() => details.value?.members || []);
+
+const chatId = computed(() => details.value?.id);
 
 const ownerId = computed(() => details.value?.ownerId);
 
@@ -260,6 +279,32 @@ function deleteChat()
         otherMember.username,
         false
     );
+}
+
+async function uploadGroupAvatar(event: Event)
+{
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file || !userStore.currentUser || !userStore.authToken || !chatId.value) return;
+
+    try
+    {
+        await uploadGroupAvatarApi(file, chatId.value, userStore.currentUser.username, userStore.authToken);
+        chatStore.showToast('Group avatar updated successfully', 'success');
+        // Force refresh avatar image
+        const avatarImg = document.querySelector('.group-avatar') as HTMLImageElement;
+        if (avatarImg)
+        {
+            avatarImg.src = `${getGroupAvatarUrl(chatId.value)}?t=${Date.now()}`;
+        }
+    }
+    catch (e)
+    {
+        console.error('Failed to upload group avatar:', e);
+        chatStore.showToast('Failed to upload group avatar', 'error');
+    }
+    // Reset input
+    input.value = '';
 }
 
 // Moment permission functions
@@ -514,6 +559,43 @@ onMounted(() =>
     color: var(--secondary-color);
     text-transform: uppercase;
     margin-bottom: 10px;
+}
+
+.group-avatar-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 10px;
+}
+
+.group-avatar {
+    width: 80px;
+    height: 80px;
+    border-radius: 10px;
+    object-fit: cover;
+    background-color: var(--border-color);
+}
+
+.avatar-upload-label {
+    position: absolute;
+    bottom: -5px;
+    right: -5px;
+    width: 28px;
+    height: 28px;
+    background: var(--primary-color);
+    border: 2px solid var(--panel-bg);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: white;
+    transition: transform 0.2s;
+}
+
+.avatar-upload-label:hover {
+    transform: scale(1.1);
 }
 
 .current-name {

@@ -253,6 +253,11 @@ export function getAvatarUrl(userId: number): string
     return `/api/user/${userId}/avatar`;
 }
 
+export function getGroupAvatarUrl(chatId: number): string
+{
+    return `/api/group/${chatId}/avatar`;
+}
+
 export function getUserId(id: number | { value: number; }): number
 {
     return typeof id === 'object' && id.value ? id.value : id as number;

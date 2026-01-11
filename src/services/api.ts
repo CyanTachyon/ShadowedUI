@@ -89,6 +89,33 @@ export async function uploadAvatar(file: File, username: string, authToken: stri
     return response;
 }
 
+export async function uploadGroupAvatar(file: File, chatId: number, username: string, authToken: string): Promise<Response>
+{
+    if (file.size > 2 * 1024 * 1024)
+    {
+        throw new Error('Image too large (max 2MB)');
+    }
+
+    const formData = new FormData();
+    formData.append('avatar', file);
+
+    const response = await fetch(`/api/group/${chatId}/avatar`, {
+        method: 'POST',
+        headers: {
+            'X-Auth-User': username,
+            'X-Auth-Token': authToken
+        },
+        body: formData
+    });
+
+    if (!response.ok)
+    {
+        throw new Error('Failed to upload group avatar');
+    }
+
+    return response;
+}
+
 export interface ResetPasswordPayload
 {
     username: string;
