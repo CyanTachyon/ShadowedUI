@@ -880,16 +880,13 @@ function handleInput(e: Event)
 async function openAtPicker(textarea: HTMLTextAreaElement, atPosition: number)
 {
     const chat = chatStore.currentChat;
-    if (!chat || !chat.parsedOtherIds || !chat.parsedOtherNames)
+    if (!chat || !chat.members)
     {
         return;
     }
 
     // Get chat members
-    const users = chat.parsedOtherIds.map((id, index) => ({
-        id,
-        name: chat.parsedOtherNames![index]
-    }));
+    const users = chat.members;
 
     if (users.length === 0)
     {
@@ -1018,11 +1015,11 @@ async function sendMessage(text: string)
             if (mention.type === 'at' && mention.username)
             {
                 const chat = chatStore.currentChat;
-                if (!chat || !chat.parsedOtherIds || !chat.parsedOtherNames) continue;
-                const userIndex = chat.parsedOtherNames!.indexOf(mention.username!);
-                if (userIndex !== -1)
+                if (!chat || !chat.members) continue;
+                const user = chat.members.find(u => u.name === mention.username!);
+                if (user)
                 {
-                    atUserIds.push(chat.parsedOtherIds![userIndex]);
+                    atUserIds.push(user.id);
                 }
             }
         }

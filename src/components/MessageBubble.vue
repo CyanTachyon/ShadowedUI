@@ -333,7 +333,7 @@ const contentChunks = computed(() =>
     
     // Get current chat members for validation
     const chat = chatStore.chats.find(c => c.chatId === props.message.chatId);
-    const chatMembers = chat?.parsedOtherNames || [];
+    const chatMembers = chat?.members?.map(m => m.name) || [];
     
     // Parse mentions and check if username is in current chat
     const chunks = parseAtMentions(decryptedContent.value);
@@ -577,15 +577,10 @@ function handleAtClick(username: string | undefined)
     if (!username) return;
     // Try to find user by username in current chat
     const chat = chatStore.currentChat;
-    if (!chat || !chat.parsedOtherIds || !chat.parsedOtherNames) return;
- 
-    // Parse chat members to find user ID by username
-    const members = chat.parsedOtherIds.map((id, index) => ({
-        id,
-        name: chat.parsedOtherNames![index]
-    }));
- 
-    const user = members.find(m => m.name === username);
+    if (!chat || !chat.members) return;
+
+    // Find user by username in members array
+    const user = chat.members.find(u => u.name === username);
     if (user)
     {
         uiStore.navigateToProfile(user.id);

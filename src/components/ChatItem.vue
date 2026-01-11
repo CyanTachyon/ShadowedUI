@@ -35,6 +35,7 @@
 import { computed } from 'vue';
 import type { Chat } from '@/types';
 import { getAvatarUrl } from '@/utils/helpers';
+import { useUserStore } from '@/stores';
 import DonorBadgeIcon from './icons/DonorBadgeIcon.vue';
 
 const props = defineProps<{
@@ -46,15 +47,24 @@ defineEmits<{
     select: [];
 }>();
 
+const userStore = useUserStore();
+
 const isGroup = computed(() => !props.chat.isPrivate);
 
 const displayName = computed(() => props.chat.name || 'Chat ' + props.chat.chatId);
 
 const otherId = computed(() =>
 {
-    return props.chat.parsedOtherIds && props.chat.parsedOtherIds.length > 0
-        ? props.chat.parsedOtherIds[0]
-        : null;
+    // For private chats, find the other user (not the current user)
+    if (props.chat.isPrivate && props.chat.members && userStore.currentUser)
+    {
+        const myUserId = typeof userStore.currentUser.id === 'object'
+            ? userStore.currentUser.id.value
+            : userStore.currentUser.id;
+        const otherMember = props.chat.members.find(m => m.id !== myUserId);
+        return otherMember?.id || null;
+    }
+    return null;
 });
 
 const unreadCount = computed(() => props.chat.unreadCount || 0);
@@ -64,9 +74,7 @@ const statusText = computed(() =>
 {
     if (isGroup.value)
     {
-        const memberCount = props.chat.parsedOtherIds
-            ? props.chat.parsedOtherIds.length + 1
-            : (props.chat.parsedOtherNames?.length || 0) + 1;
+        const memberCount = props.chat.members?.length || 0;
         return `${memberCount} members`;
     }
     return 'Private chat';

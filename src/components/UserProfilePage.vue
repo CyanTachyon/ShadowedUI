@@ -166,12 +166,12 @@ function getUsernameById(targetUserId: number): string | null
 {
     // Check if user is in current chat members
     const chat = chatStore.currentChat;
-    if (chat && chat.isPrivate && chat.parsedOtherIds && chat.parsedOtherNames)
+    if (chat && chat.isPrivate && chat.members)
     {
-        const idx = chat.parsedOtherIds.findIndex(id => id === targetUserId);
-        if (idx >= 0)
+        const member = chat.members.find(m => m.id === targetUserId);
+        if (member)
         {
-            return chat.parsedOtherNames[idx] || null;
+            return member.name;
         }
     }
 

@@ -12,6 +12,12 @@ export interface User
     isDonor?: boolean;
 }
 
+export interface ChatMember
+{
+    id: number;
+    name: string;
+}
+
 export interface Chat
 {
     chatId: number;
@@ -19,8 +25,7 @@ export interface Chat
     isPrivate: boolean;
     key: string;
     unreadCount?: number;
-    parsedOtherIds?: number[];
-    parsedOtherNames?: string[];
+    members?: ChatMember[];
     ownerId?: number;
     doNotDisturb: boolean;
     burnTime?: number | null; // 阅后即焚时间（毫秒），null或undefined表示关闭

@@ -67,8 +67,8 @@ const displayName = computed(() =>
 const otherId = computed(() =>
 {
     if (!currentChat.value) return null;
-    return currentChat.value.parsedOtherIds && currentChat.value.parsedOtherIds.length > 0
-        ? currentChat.value.parsedOtherIds[0]
+    return currentChat.value.members && currentChat.value.members.length > 0
+        ? currentChat.value.members[0].id
         : null;
 });
 
