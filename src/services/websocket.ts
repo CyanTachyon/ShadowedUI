@@ -98,11 +98,10 @@ class WebSocketService
 
     on(packet: string, handler: PacketHandler): void
     {
-        if (!this.handlers.has(packet))
-        {
-            this.handlers.set(packet, new Set());
-        }
+        if (!this.handlers.has(packet)) this.handlers.set(packet, new Set());
         this.handlers.get(packet)!.add(handler);
+
+        console.log(this.handlers);
     }
 
     off(packet: string, handler?: PacketHandler): void
@@ -114,10 +113,7 @@ class WebSocketService
             if (handlers)
             {
                 handlers.delete(handler);
-                if (handlers.size === 0)
-                {
-                    this.handlers.delete(packet);
-                }
+                if (handlers.size === 0) this.handlers.delete(packet);
             }
         } 
         else

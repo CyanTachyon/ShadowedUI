@@ -148,7 +148,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch, computed, reactive } from 'vue';
+import { ref, onMounted, watch, computed, reactive, onUnmounted } from 'vue';
 import { useChatStore, useUserStore, useUIStore } from '@/stores';
 import { wsService } from '@/services/websocket';
 import { getAvatarUrl, getUserId } from '@/utils/helpers';
@@ -182,12 +182,14 @@ const chatStore = useChatStore();
 const userStore = useUserStore();
 const uiStore = useUIStore();
 
+let myMomentKey: CryptoKey | null = null;
+let myEncryptedMomentKey: string | null = null;
+
 const moments = ref<DecryptedMoment[]>([]);
 const loading = ref(false);
 const hasMore = ref(true);
 const showPostModal = ref(false);
 const newMomentText = ref('');
-const currentOffset = ref(0);
 const currentViewingUserName = ref('');
 
 // Context menu state
@@ -281,18 +283,10 @@ function getMomentCurrentReaction(momentId: number): string | null
 
 async function getDecryptedKey(encryptedKey: string): Promise<CryptoKey | null>
 {
-    if (keyCache.has(encryptedKey))
-    {
-        return keyCache.get(encryptedKey)!;
-    }
-
+    if (keyCache.has(encryptedKey)) return keyCache.get(encryptedKey)!;
     if (!userStore.privateKey) return null;
-
     const key = await decryptSymmetricKey(encryptedKey, userStore.privateKey);
-    if (key)
-    {
-        keyCache.set(encryptedKey, key);
-    }
+    if (key) keyCache.set(encryptedKey, key);
     return key;
 }
 
@@ -377,12 +371,8 @@ function formatTime(timestamp: number): string
 async function loadMoments()
 {
     loading.value = true;
-    currentOffset.value = 0;
-
     if (viewingUserId.value)
     {
-        // Load specific user's moments
-        // Backend expects offset (not before as message ID or timestamp)
         wsService.sendPacket('get_user_moments', {
             userId: viewingUserId.value,
             before: 0,
@@ -409,7 +399,7 @@ async function loadMoreMoments()
         // Backend expects offset (not message ID)
         wsService.sendPacket('get_user_moments', {
             userId: viewingUserId.value,
-            before: currentOffset.value,
+            before: moments.value.length,
             count: 20
         });
     }
@@ -417,7 +407,7 @@ async function loadMoreMoments()
     {
         // Load more all moments
         wsService.sendPacket('get_moments', {
-            offset: currentOffset.value,
+            offset: moments.value.length,
             count: 20
         });
     }
@@ -425,12 +415,21 @@ async function loadMoreMoments()
 
 async function postMoment()
 {
-    if (!newMomentText.value.trim()) return;
-
+    if (!myMomentKey || !myEncryptedMomentKey)
+    {
+        chatStore.showToast('Moment key not available', 'error');
+        return;
+    }
     try
     {
-        // Get or create moment key
-        wsService.sendPacket('get_my_moment_key', {});
+        const encryptedContent = await encryptMessageString(newMomentText.value.trim(), myMomentKey);
+        wsService.sendPacket('post_moment', {
+            content: encryptedContent,
+            key: myEncryptedMomentKey,
+            type: 'TEXT'
+        });
+        showPostModal.value = false;
+        newMomentText.value = '';
     }
     catch (e)
     {
@@ -441,11 +440,9 @@ async function postMoment()
 
 async function handleMomentKeyResponse(data: { exists: boolean; key?: string; chatId?: number; })
 {
-    if (!newMomentText.value.trim()) return;
-
     try
     {
-        let encryptedKey: string | undefined;
+        let encryptedKey: string;
         let key: CryptoKey;
 
         if (!data.exists || !data.key)
@@ -462,7 +459,7 @@ async function handleMomentKeyResponse(data: { exists: boolean; key?: string; ch
         }
         else
         {
-            // Decrypt existing key
+            encryptedKey = data.key;
             const decryptedKey = await getDecryptedKey(data.key);
             if (!decryptedKey)
             {
@@ -471,69 +468,26 @@ async function handleMomentKeyResponse(data: { exists: boolean; key?: string; ch
             }
             key = decryptedKey;
         }
-
-        // Encrypt the message
-        const encryptedContent = await encryptMessageString(newMomentText.value, key);
-
-        wsService.sendPacket('post_moment', {
-            content: encryptedContent,
-            type: 'TEXT',
-            key: encryptedKey || null
-        });
-
-        showPostModal.value = false;
-        newMomentText.value = '';
-
-        // Refresh moments
-        setTimeout(() => loadMoments(), 500);
+        myMomentKey = key;
+        myEncryptedMomentKey = encryptedKey;
     }
     catch (e)
     {
-        console.error('Failed to post moment:', e);
+        console.error('Failed to handle moment key response:', e);
         chatStore.showToast('Failed to post moment', 'error');
     }
 }
 
-async function handleMomentsList(data: { moments: Moment[]; })
+async function handleMomentsList(data: { moments: Moment[]; username?: string; })
 {
     loading.value = false;
-    hasMore.value = data.moments.length >= 20;
-
-    // Decrypt all moments
+    hasMore.value = !!data.moments.length;
+    if (data.username) currentViewingUserName.value = data.username;
     const decrypted = await Promise.all(data.moments.map(decryptMoment));
-
-    // Merge with existing moments
     const existingIds = new Set(moments.value.map(m => m.messageId));
     const newMoments = decrypted.filter(m => !existingIds.has(m.messageId));
-
     moments.value = [...moments.value, ...newMoments].sort((a, b) => b.time - a.time);
-
-    // Update offset for next load
-    currentOffset.value = moments.value.length;
-}
-
-async function handleUserMomentsList(data: { userId: number; username: string; moments: Moment[]; })
-{
-    loading.value = false;
-    hasMore.value = data.moments.length >= 20;
-
-    // Store the username from backend response
-    if (data.username)
-    {
-        currentViewingUserName.value = data.username;
-    }
-
-    // Decrypt all moments
-    const decrypted = await Promise.all(data.moments.map(decryptMoment));
-
-    // When viewing specific user, just add all moments (they're already sorted by time)
-    const existingIds = new Set(moments.value.map(m => m.messageId));
-    const newMoments = decrypted.filter(m => !existingIds.has(m.messageId));
-
-    moments.value = [...moments.value, ...newMoments].sort((a, b) => b.time - a.time);
-
-    // Update offset for next load
-    currentOffset.value = moments.value.length;
+    if (data.username) moments.value = moments.value.filter(m => m.ownerName === data.username);
 }
 
 function goBackToAllMoments()
@@ -805,8 +759,6 @@ async function handleMomentComments(data: { momentMessageId: number; comments: a
 function handleCommentSent()
 {
     // Comment was sent successfully
-    // The comment will be received via WebSocket and added to comments list
-    // No need to refresh moments
 }
 
 function getSelectedMomentReactions(): Reaction[]
@@ -878,15 +830,9 @@ function getUserMap(): Map<number, string>
     if (!moment || !moment.reactions) return userMap;
 
     for (const reaction of moment.reactions)
-    {
         for (const userId of reaction.userIds)
-        {
             if (!userMap.has(userId))
-            {
                 userMap.set(userId, `User ${userId}`);
-            }
-        }
-    }
     return userMap;
 }
 
@@ -901,17 +847,23 @@ function handleUserClick(userId: number)
 onMounted(() =>
 {
     wsService.on('moments_list', handleMomentsList);
-    wsService.on('user_moments_list', handleUserMomentsList);
     wsService.on('my_moment_key', handleMomentKeyResponse);
     wsService.on('moment_edited', handleMomentEdited);
     wsService.on('moment_deleted', handleMomentDeleted);
     wsService.on('comment_added', handleCommentAdded);
     wsService.on('moment_comments', handleMomentComments);
+    if (chatStore.isMomentsView) loadMoments();
+    sendPacket('get_my_moment_key', {});
+});
 
-    if (chatStore.isMomentsView)
-    {
-        loadMoments();
-    }
+onUnmounted(() =>
+{
+    wsService.off('moments_list', handleMomentsList);
+    wsService.off('my_moment_key', handleMomentKeyResponse);
+    wsService.off('moment_edited', handleMomentEdited);
+    wsService.off('moment_deleted', handleMomentDeleted);
+    wsService.off('comment_added', handleCommentAdded);
+    wsService.off('moment_comments', handleMomentComments);
 });
 
 // Watch for view changes
@@ -920,10 +872,7 @@ watch(() => chatStore.isMomentsView, (newVal) =>
     if (newVal)
     {
         moments.value = [];
-        if (!viewingUserId.value)
-        {
-            currentViewingUserName.value = '';
-        }
+        if (!viewingUserId.value) currentViewingUserName.value = '';
         loadMoments();
     }
 });

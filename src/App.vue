@@ -61,11 +61,7 @@ function handleGlobalClick(event: MouseEvent)
 // Setup WebSocket handlers
 function setupWebSocketHandlers()
 {
-    wsService.on('notify', (data) =>
-    {
-        const type = data.type.toLowerCase() as 'info' | 'error' | 'success' | 'warning';
-        chatStore.showToast(data.message, type);
-    });
+    wsService.on('notify', (data) => chatStore.showToast(data.message, data.type.toLowerCase() as 'info' | 'error' | 'success' | 'warning'));
 
     wsService.on('login_result', async (data) =>
     {
@@ -79,35 +75,11 @@ function setupWebSocketHandlers()
         if (success) chatStore.refreshChats();
     });
 
-    wsService.on('chats_list', async (data) =>
-    {
-        await chatStore.handleChatsList(data.chats);
-    });
-
-    wsService.on('messages_list', (data) =>
-    {
-        chatStore.handleMessagesList(data);
-    });
-
-    wsService.on('receive_message', (data) =>
-    {
-        chatStore.handleReceiveMessage(data);
-    });
-
-    wsService.on('message_edited', (data) =>
-    {
-        chatStore.handleMessageEdited(data);
-    });
-
-    wsService.on('friends_list', (data) =>
-    {
-        chatStore.setFriends(data.friends);
-    });
-
-    wsService.on('chat_details', (data) =>
-    {
-        chatStore.handleChatDetails(data);
-    });
+    wsService.on('chats_list', async (data) => await chatStore.handleChatsList(data.chats));
+    wsService.on('messages_list', chatStore.handleMessagesList);
+    wsService.on('receive_message', chatStore.handleReceiveMessage);
+    wsService.on('friends_list', (data) => chatStore.setFriends(data.friends));
+    wsService.on('chat_details', chatStore.handleChatDetails);
 
     wsService.on('friend_added', (data) =>
     {
@@ -116,18 +88,9 @@ function setupWebSocketHandlers()
         chatStore.pendingChatToOpen = data.chatId;
     });
 
-    wsService.on('broadcasts_list', (data) =>
-    {
-        chatStore.handleBroadcastsList(data);
-    });
-
-    wsService.on('unread_count', (data) =>
-    {
-        chatStore.handleUnreadCount(data);
-    });
-
+    wsService.on('broadcasts_list', chatStore.handleBroadcastsList);
+    wsService.on('unread_count', chatStore.handleUnreadCount);
     wsService.on('public_key_by_username', () => {});
-
     wsService.on('time', (data) => uiStore.updateServerTime(data.t));
 
     wsService.onConnect(async () =>

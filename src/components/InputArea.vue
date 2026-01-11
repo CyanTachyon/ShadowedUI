@@ -76,7 +76,6 @@ import VideoIcon from './icons/VideoIcon.vue';
 import FileIcon from './icons/FileIcon.vue';
 import UploadProgressBar from './UploadProgressBar.vue';
 import type { UploadTask } from '@/types';
-import { getUserId } from '@/utils/helpers';
 import {
     saveUploadTask,
     deleteUploadTask,
@@ -892,11 +891,7 @@ async function openAtPicker(textarea: HTMLTextAreaElement, atPosition: number)
         name: chat.parsedOtherNames![index]
     }));
 
-    // Filter out current user
-    const currentUserId = userStore.currentUser ? getUserId(userStore.currentUser.id) : null;
-    const filteredUsers = users.filter(u => u.id !== currentUserId);
-
-    if (filteredUsers.length === 0)
+    if (users.length === 0)
     {
         return;
     }
@@ -910,7 +905,7 @@ async function openAtPicker(textarea: HTMLTextAreaElement, atPosition: number)
 
     atTriggerPosition.value = atPosition;
     atFilter.value = '';
-    chatUsers.value = filteredUsers;
+    chatUsers.value = users;
     atPickerX.value = rect.left;
     atPickerY.value = approximateY;
     showAtPicker.value = true;

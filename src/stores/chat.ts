@@ -261,6 +261,17 @@ export const useChatStore = defineStore('chat', () =>
         // 只对新消息触发通知，不包括删除、更新或静默消息
         if (isDeleteMessage || isExistingMessage || data.silent) return;
 
+        // 调整chats顺序，将有新消息的chat移到最前面
+        if (!data.silent)
+        {
+            const chatIndex = chats.value.findIndex(c => c.chatId === msg.chatId);
+            if (chatIndex > 0)
+            {
+                const chat = chats.value.splice(chatIndex, 1)[0];
+                chats.value.unshift(chat);
+            }
+        }
+
         if ((msg.chatId !== currentChatId.value || !isPageInForeground()) && msg.senderId !== useUserStore().currentUser?.id)
         {
             const chat = chats.value.find(c => c.chatId === msg.chatId);
@@ -272,20 +283,6 @@ export const useChatStore = defineStore('chat', () =>
                 const chat = chats.value.find(c => c.chatId === msg.chatId);
                 if (chat) selectChat(chat);
             });
-        }
-    }
-
-    // Handle message edit response
-    function handleMessageEdited(data: { messageId: number; content: string; chatId: number; }): void
-    {
-        // 更新当前聊天中的消息
-        const messageIndex = currentChatMessages.value.findIndex(m => m.id === data.messageId);
-        if (messageIndex !== -1)
-        {
-            currentChatMessages.value[messageIndex] = {
-                ...currentChatMessages.value[messageIndex],
-                content: data.content
-            };
         }
     }
 
@@ -771,7 +768,6 @@ export const useChatStore = defineStore('chat', () =>
         loadMoreMessages,
         handleMessagesList,
         handleReceiveMessage,
-        handleMessageEdited,
         editMessage,
         openBroadcasts,
         loadBroadcasts,
