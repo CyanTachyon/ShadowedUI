@@ -18,7 +18,7 @@
                             <circle cx="12" cy="13" r="4"></circle>
                         </svg>
                     </label>
-                    <input id="group-avatar-upload" ref="groupAvatarInput" type="file" accept="image/*" style="display: none" @change="uploadGroupAvatar" />
+                    <input id="group-avatar-upload" type="file" accept="image/*" style="display: none" @change="uploadGroupAvatar" />
                 </div>
             </div>
 
@@ -51,7 +51,8 @@
                     <div v-for="member in members.filter(m => m.id !== myId || !isPrivate)" :key="member.id" class="member-item">
                         <div class="member-avatar-wrapper">
                             <img :src="getAvatarUrl(member.id)" class="member-avatar" alt="avatar" @click="openUserProfile(member.id)" />
-                            <DonorBadgeIcon v-if="member.isDonor" class="member-donor-badge" />
+                            <div v-if="member.isOnline" class="online-indicator"></div>
+                            <!-- <DonorBadgeIcon v-if="member.isDonor" class="member-donor-badge" /> -->
                         </div>
                         <span class="member-name" @click="openUserProfile(member.id)">
                             {{ member.username }}
@@ -129,14 +130,13 @@ import
     } from '@/utils/crypto';
 import type { ChatMember, MomentPermission } from '@/types';
 import CloseIcon from './icons/CloseIcon.vue';
-import DonorBadgeIcon from './icons/DonorBadgeIcon.vue';
+// import DonorBadgeIcon from './icons/DonorBadgeIcon.vue';
 import SelectDropdown from './SelectDropdown/SelectDropdown.vue';
 
 const chatStore = useChatStore();
 const userStore = useUserStore();
 const uiStore = useUIStore();
 
-const groupAvatarInput = ref<HTMLInputElement | null>(null);
 const newName = ref('');
 const momentPermission = ref<MomentPermission | null>(null);
 const loadingPermission = ref(false);
@@ -502,7 +502,7 @@ onMounted(() =>
 
 <style scoped>
 #chat-settings-panel {
-    width: 250px;
+    width: 320px;
     background: var(--panel-bg);
     border-left: 1px solid var(--border-color);
     display: flex;
@@ -691,6 +691,17 @@ onMounted(() =>
     right: -2px;
     width: 16px;
     height: 16px;
+}
+
+.online-indicator {
+    position: absolute;
+    bottom: -3px;
+    right: -3px;
+    width: 10px;
+    height: 10px;
+    background-color: #22c55e;
+    border: 2px solid var(--panel-bg);
+    border-radius: 50%;
 }
 
 .member-name {

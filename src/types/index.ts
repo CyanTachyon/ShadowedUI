@@ -129,6 +129,7 @@ export interface ChatMember
     username: string;
     signature?: string;
     isDonor?: boolean;
+    isOnline?: boolean;
 }
 
 export interface ChatDetails
