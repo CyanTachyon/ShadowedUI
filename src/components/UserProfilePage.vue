@@ -320,7 +320,8 @@ async function toggleMomentPermission()
             if (user.value)
             {
                 wsService.sendPacket('get_public_key_by_username', { username: user.value.username });
-            } else
+            } 
+            else
             {
                 resolve(null);
             }
@@ -349,7 +350,8 @@ async function toggleMomentPermission()
             encryptedKey: encryptedFriendKey
         });
 
-    } catch (e)
+    } 
+    catch (e)
     {
         console.error('Failed to enable moment permission:', e);
         chatStore.showToast('Failed to enable moment permission', 'error');

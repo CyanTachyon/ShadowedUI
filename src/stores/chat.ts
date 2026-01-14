@@ -206,14 +206,14 @@ export const useChatStore = defineStore('chat', () =>
             history.pushState({ view: 'chat', chatId: chat.chatId }, '', '');
         }
 
-        loadChatMessages(chat.chatId, 0);
+        loadChatMessages(chat.chatId, null);
     }
 
-    function loadChatMessages(chatId: number, offset: number): void
+    function loadChatMessages(chatId: number, before: number | null): void
     {
         wsService.sendPacket('get_messages', {
             chatId,
-            begin: offset,
+            before,
             count: 50
         });
     }
@@ -221,8 +221,11 @@ export const useChatStore = defineStore('chat', () =>
     function loadMoreMessages(): void
     {
         if (!currentChatId.value || !hasMoreMessages.value) return;
-        currentChatOffset.value += 50;
-        loadChatMessages(currentChatId.value, currentChatOffset.value);
+        // Get the oldest message ID to load older messages
+        const oldestMessageTime = currentChatMessages.value.length > 0
+            ? Math.min(...currentChatMessages.value.map(m => m.time))
+            : null;
+        loadChatMessages(currentChatId.value, oldestMessageTime);
     }
 
     function mergeMessages(messages: Message[])
@@ -559,7 +562,7 @@ export const useChatStore = defineStore('chat', () =>
         messagesLoading.value = true;
 
         uiStore.setViewState('chat');
-        loadChatMessages(chat.chatId, 0);
+        loadChatMessages(chat.chatId, null);
     }
 
     // 恢复广播视图（不修改历史，用于 popstate 处理）
@@ -711,9 +714,9 @@ export const useChatStore = defineStore('chat', () =>
         // 压入新的历史状态，让用户可以 back 返回到之前的视图
         history.pushState({ view: 'chat', chatId: 'moments', viewingUserId: userId }, '', '');
 
-        wsService.sendPacket('get_user_moments', {
+        wsService.sendPacket('get_moments', {
             userId,
-            before: 0,
+            before: null,
             count: 50
         });
     }
@@ -801,5 +804,6 @@ export const useChatStore = defineStore('chat', () =>
         clearReplyingTo
     };
 });
+
 
 

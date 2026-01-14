@@ -9,7 +9,7 @@
                         <circle cx="12" cy="13" r="4"></circle>
                     </svg>
                 </label>
-                <input id="avatar-upload" ref="avatarInput" type="file" accept="image/*" style="display: none" @change="uploadAvatar" />
+                <input id="avatar-upload" ref="avatarInput" type="file" accept="image/*" style="display: none" @change="handleAvatarSelect" />
             </div>
             <div class="mine-user-info">
                 <div class="mine-username">{{ userStore.currentUser?.username || 'User' }}</div>
@@ -91,6 +91,16 @@
         </div>
 
         <input ref="backgroundInput" type="file" accept="image/*" style="display: none" @change="uploadBackground" />
+
+        <!-- 图片裁剪组件 -->
+        <ImageCropper
+            v-if="showImageCropper"
+            :image-url="selectedImageUrl"
+            crop-type="circle"
+            title="Crop Avatar"
+            @confirm="handleCropConfirm"
+            @cancel="showImageCropper = false"
+        />
     </div>
 </template>
 
@@ -99,13 +109,20 @@ import { ref, watch } from 'vue';
 import { useUserStore, useChatStore, useUIStore } from '@/stores';
 import { uploadAvatar as uploadAvatarApi } from '@/services/api';
 import { wsService } from '@/services/websocket';
+import ImageCropper from './ImageCropper.vue';
 
 const userStore = useUserStore();
 const chatStore = useChatStore();
 const uiStore = useUIStore();
 
 const backgroundInput = ref<HTMLInputElement | null>(null);
+const avatarInput = ref<HTMLInputElement | null>(null);
 const signature = ref(userStore.currentUser?.signature || '');
+
+// 图片裁剪相关状态
+const showImageCropper = ref(false);
+const selectedImageUrl = ref('');
+const selectedFile = ref<File | null>(null);
 
 watch(() => userStore.currentUser?.signature, (newSignature) =>
 {
@@ -126,22 +143,71 @@ function saveSignature()
     chatStore.showToast('Signature updated', 'success');
 }
 
-async function uploadAvatar(event: Event)
+// 处理头像文件选择
+function handleAvatarSelect(event: Event)
 {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
-    if (!file || !userStore.currentUser || !userStore.authToken) return;
+    if (!file) return;
+
+    // 验证文件类型
+    if (!file.type.startsWith('image/'))
+    {
+        chatStore.showToast('Please select an image file', 'error');
+        return;
+    }
+
+    // 验证文件大小（最大 5MB）
+    if (file.size > 5 * 1024 * 1024)
+    {
+        chatStore.showToast('Image size must be less than 5MB', 'error');
+        return;
+    }
+
+    selectedFile.value = file;
+    
+    // 读取文件并显示裁剪器
+    const reader = new FileReader();
+    reader.onload = (e) =>
+    {
+        selectedImageUrl.value = e.target?.result as string;
+        showImageCropper.value = true;
+    };
+    reader.onerror = () =>
+    {
+        chatStore.showToast('Error reading image', 'error');
+    };
+    reader.readAsDataURL(file);
+    
+    // 重置 input
+    input.value = '';
+}
+
+// 处理裁剪确认
+async function handleCropConfirm(blob: Blob)
+{
+    if (!selectedFile.value || !userStore.currentUser || !userStore.authToken) return;
+
+    // 创建新的 File 对象
+    const croppedFile = new File([blob], selectedFile.value.name, {
+        type: 'image/png',
+        lastModified: Date.now()
+    });
 
     try
     {
-        await uploadAvatarApi(file, userStore.currentUser.username, userStore.authToken);
+        await uploadAvatarApi(croppedFile, userStore.currentUser.username, userStore.authToken);
         chatStore.showToast('Avatar updated', 'success');
     }
     catch (e: any)
     {
         chatStore.showToast(e.message || 'Error uploading avatar', 'error');
     }
-    input.value = '';
+
+    // 关闭裁剪器并清理
+    showImageCropper.value = false;
+    selectedImageUrl.value = '';
+    selectedFile.value = null;
 }
 
 function triggerBackgroundUpload()

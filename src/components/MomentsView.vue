@@ -373,9 +373,9 @@ async function loadMoments()
     loading.value = true;
     if (viewingUserId.value)
     {
-        wsService.sendPacket('get_user_moments', {
+        wsService.sendPacket('get_moments', {
             userId: viewingUserId.value,
-            before: 0,
+            before: null,
             count: 20
         });
     }
@@ -383,7 +383,7 @@ async function loadMoments()
     {
         // Load all moments
         wsService.sendPacket('get_moments', {
-            offset: 0,
+            before: null,
             count: 20
         });
     }
@@ -393,13 +393,17 @@ async function loadMoreMoments()
 {
     if (moments.value.length === 0) return;
 
+    // Get the oldest moment's time to load older moments
+    const oldestMomentTime = moments.value.length > 0
+        ? Math.min(...moments.value.map(m => m.time))
+        : null;
+
     if (viewingUserId.value)
     {
         // Load more specific user's moments
-        // Backend expects offset (not message ID)
-        wsService.sendPacket('get_user_moments', {
+        wsService.sendPacket('get_moments', {
             userId: viewingUserId.value,
-            before: moments.value.length,
+            before: oldestMomentTime,
             count: 20
         });
     }
@@ -407,7 +411,7 @@ async function loadMoreMoments()
     {
         // Load more all moments
         wsService.sendPacket('get_moments', {
-            offset: moments.value.length,
+            before: oldestMomentTime,
             count: 20
         });
     }

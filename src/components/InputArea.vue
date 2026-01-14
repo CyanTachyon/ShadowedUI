@@ -325,8 +325,6 @@ async function sendImage(file: File)
 
 async function sendVideo(file: File)
 {
-    
-
     if (!chatStore.currentChatId)
     {
         console.error('[sendVideo] No current chat ID');

@@ -243,7 +243,7 @@ export function isMobileDevice(): boolean
     return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 }
 
-export function formatDate(date: string | Date): string
+export function formatDate(date: string | Date | number): string
 {
     return new Date(date).toLocaleString();
 }

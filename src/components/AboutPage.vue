@@ -298,8 +298,9 @@ function formatDonationAmount(cents: number): string
     border-radius: 12px;
     cursor: pointer;
     transition: all 0.2s;
-    min-width: 200px;
-    flex: 1 1 200px;
+    min-width: 100px;
+    flex: 1 1 100px;
+    overflow: hidden;
 }
 
 .donor-item:hover {

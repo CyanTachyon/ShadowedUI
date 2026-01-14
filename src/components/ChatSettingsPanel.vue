@@ -18,7 +18,7 @@
                             <circle cx="12" cy="13" r="4"></circle>
                         </svg>
                     </label>
-                    <input id="group-avatar-upload" type="file" accept="image/*" style="display: none" @change="uploadGroupAvatar" />
+                    <input id="group-avatar-upload" type="file" accept="image/*" style="display: none" @change="handleGroupAvatarSelect" />
                 </div>
             </div>
 
@@ -80,12 +80,7 @@
                 <div class="burn-after-read-controls">
                     <div class="section-title">Burn After Read</div>
                     <div class="burn-time-select">
-                        <SelectDropdown
-                            :options="burnTimeOptions"
-                            v-model="selectedBurnTime"
-                            placeholder="Off"
-                            @update:modelValue="onBurnTimeChange"
-                        />
+                        <SelectDropdown :options="burnTimeOptions" v-model="selectedBurnTime" placeholder="Off" @update:modelValue="onBurnTimeChange" />
                     </div>
                     <div class="burn-hint" v-if="currentBurnTime">
                         Messages will be deleted {{ formatBurnTime(currentBurnTime) }} after being read
@@ -113,6 +108,9 @@
         <div v-else class="settings-content" style="display: flex; justify-content: center; align-items: center; height: 100%;">
             Loading...
         </div>
+
+        <!-- 图片裁剪组件 -->
+        <ImageCropper v-if="showImageCropper" :image-url="selectedImageUrl" crop-type="square" title="Crop Group Avatar" @confirm="handleCropConfirm" @cancel="showImageCropper = false" />
     </div>
 </template>
 
@@ -122,12 +120,13 @@ import { useChatStore, useUserStore, useUIStore } from '@/stores';
 import { wsService } from '@/services/websocket';
 import { getAvatarUrl, getGroupAvatarUrl, getUserId } from '@/utils/helpers';
 import { uploadGroupAvatar as uploadGroupAvatarApi } from '@/services/api';
+import ImageCropper from './ImageCropper.vue';
 import
-    {
-        encryptSymmetricKey,
-        decryptSymmetricKey,
-        importPublicKey
-    } from '@/utils/crypto';
+{
+    encryptSymmetricKey,
+    decryptSymmetricKey,
+    importPublicKey
+} from '@/utils/crypto';
 import type { ChatMember, MomentPermission } from '@/types';
 import CloseIcon from './icons/CloseIcon.vue';
 // import DonorBadgeIcon from './icons/DonorBadgeIcon.vue';
@@ -141,6 +140,11 @@ const newName = ref('');
 const momentPermission = ref<MomentPermission | null>(null);
 const loadingPermission = ref(false);
 const selectedBurnTime = ref<number | null>(null);
+
+// 图片裁剪相关状态
+const showImageCropper = ref(false);
+const selectedImageUrl = ref('');
+const selectedFile = ref<File | null>(null);
 
 // 阅后即焚时间选项
 const burnTimeOptions = [
@@ -281,15 +285,60 @@ function deleteChat()
     );
 }
 
-async function uploadGroupAvatar(event: Event)
+// 处理群头像文件选择
+function handleGroupAvatarSelect(event: Event)
 {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
-    if (!file || !userStore.currentUser || !userStore.authToken || !chatId.value) return;
+    if (!file) return;
+
+    // 验证文件类型
+    if (!file.type.startsWith('image/'))
+    {
+        chatStore.showToast('Please select an image file', 'error');
+        return;
+    }
+
+    // 验证文件大小（最大 5MB）
+    if (file.size > 5 * 1024 * 1024)
+    {
+        chatStore.showToast('Image size must be less than 5MB', 'error');
+        return;
+    }
+
+    selectedFile.value = file;
+
+    // 读取文件并显示裁剪器
+    const reader = new FileReader();
+    reader.onload = (e) =>
+    {
+        selectedImageUrl.value = e.target?.result as string;
+        showImageCropper.value = true;
+    };
+    reader.onerror = () =>
+    {
+        chatStore.showToast('Error reading image', 'error');
+    };
+    reader.readAsDataURL(file);
+
+    // 重置 input
+    input.value = '';
+}
+
+// 处理裁剪确认
+async function handleCropConfirm(blob: Blob)
+{
+    if (!selectedFile.value || !userStore.currentUser || !userStore.authToken || !chatId.value) return;
+
+    // 创建新的 File 对象
+    const croppedFile = new File([blob], selectedFile.value.name, {
+        type: 'image/png',
+        lastModified: Date.now()
+    });
 
     try
     {
-        await uploadGroupAvatarApi(file, chatId.value, userStore.currentUser.username, userStore.authToken);
+        await uploadGroupAvatarApi(croppedFile, chatId.value, userStore.currentUser.username, userStore.authToken);
         chatStore.showToast('Group avatar updated successfully', 'success');
         // Force refresh avatar image
         const avatarImg = document.querySelector('.group-avatar') as HTMLImageElement;
@@ -303,8 +352,11 @@ async function uploadGroupAvatar(event: Event)
         console.error('Failed to upload group avatar:', e);
         chatStore.showToast('Failed to upload group avatar', 'error');
     }
-    // Reset input
-    input.value = '';
+
+    // 关闭裁剪器并清理
+    showImageCropper.value = false;
+    selectedImageUrl.value = '';
+    selectedFile.value = null;
 }
 
 // Moment permission functions
@@ -426,7 +478,8 @@ async function toggleMomentPermission()
             if (otherMember)
             {
                 wsService.sendPacket('get_public_key_by_username', { username: otherMember.username });
-            } else
+            } 
+            else
             {
                 resolve(null);
             }
@@ -455,7 +508,8 @@ async function toggleMomentPermission()
             encryptedKey: encryptedFriendKey
         });
 
-    } catch (e)
+    } 
+    catch (e)
     {
         console.error('Failed to enable moment permission:', e);
         chatStore.showToast('Failed to enable moment permission', 'error');

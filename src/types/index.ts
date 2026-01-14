@@ -56,7 +56,7 @@ export interface Message
     senderIsDonor: boolean;
     content: string;
     type: 'TEXT' | 'IMAGE' | 'VIDEO' | 'FILE';
-    time: string;
+    time: number;
     replyTo: ReplyInfo | null;
     readAt: number | null;
     burn: number | null;

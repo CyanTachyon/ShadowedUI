@@ -100,8 +100,6 @@ class WebSocketService
     {
         if (!this.handlers.has(packet)) this.handlers.set(packet, new Set());
         this.handlers.get(packet)!.add(handler);
-
-        console.log(this.handlers);
     }
 
     off(packet: string, handler?: PacketHandler): void

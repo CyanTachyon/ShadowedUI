@@ -29,7 +29,7 @@
                     <img :src="getAvatarUrl(otherId)" class="chat-avatar" alt="avatar" loading="lazy" />
                 </template>
                 <template v-else-if="isGroup">
-                    <img :src="getGroupAvatarUrl(currentChat.chatId)" class="chat-avatar" alt="Group Avatar" loading="lazy" />
+                    <img :src="getGroupAvatarUrl(currentChat.chatId)" class="chat-avatar group" alt="Group Avatar" loading="lazy" />
                 </template>
                 <span>{{ displayName }}</span>
             </template>
@@ -45,12 +45,13 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import { useChatStore, useUIStore } from '@/stores';
+import { useChatStore, useUIStore, useUserStore } from '@/stores';
 import { getAvatarUrl, getGroupAvatarUrl } from '@/utils/helpers';
 import SettingsIcon from './icons/SettingsIcon.vue';
 
 const chatStore = useChatStore();
 const uiStore = useUIStore();
+const userStore = useUserStore();
 
 const currentChat = computed(() => chatStore.currentChat);
 
@@ -64,10 +65,16 @@ const displayName = computed(() =>
 
 const otherId = computed(() =>
 {
-    if (!currentChat.value) return null;
-    return currentChat.value.members && currentChat.value.members.length > 0
-        ? currentChat.value.members[0].id
-        : null;
+    // For private chats, find the other user (not the current user)
+    if (currentChat.value?.isPrivate && currentChat.value?.members && userStore.currentUser)
+    {
+        const myUserId = typeof userStore.currentUser.id === 'object'
+            ? userStore.currentUser.id.value
+            : userStore.currentUser.id;
+        const otherMember = currentChat.value.members.find(m => m.id !== myUserId);
+        return otherMember?.id || null;
+    }
+    return null;
 });
 
 function goBack()
@@ -112,6 +119,9 @@ function goBack()
     border-radius: 50%;
     margin-right: 8px;
     object-fit: cover;
+}
+.chat-avatar.group {
+    border-radius: 25%;
 }
 
 .chat-settings-btn {
