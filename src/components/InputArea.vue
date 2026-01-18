@@ -785,6 +785,14 @@ function handleKeyDown(e: KeyboardEvent)
         return; // Let AtMentionPicker handle these keys
     }
 
+    // Ctrl + S to send
+    if ((e.ctrlKey || e.metaKey) && e.key === 's')
+    {
+        e.preventDefault();
+        send();
+        return;
+    }
+
     if (e.key === 'Enter')
     {
         if (isComposing.value) return;

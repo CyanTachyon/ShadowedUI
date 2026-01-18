@@ -18,7 +18,7 @@
                             <span>{{ friend.username }}</span>
                         </template>
                         <template v-else>
-                            <input type="checkbox" :checked="selectedFriends.has(friend.username)" @click.stop />
+                            <input type="checkbox" :checked="selectedFriends.has(friend.username)"/>
                             <img :src="getAvatarUrl(friend.id)" class="avatar" alt="avatar" loading="lazy" />
                             <span>{{ friend.username }}</span>
                         </template>
