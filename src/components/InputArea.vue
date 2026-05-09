@@ -106,7 +106,7 @@ const atPickerX = ref(0);
 const atPickerY = ref(0);
 const atFilter = ref('');
 const atTriggerPosition = ref(0); // Position of @ in input
-const chatUsers = ref<{ id: number; name: string }[]>([]);
+const chatUsers = ref<{ id: number; username: string }[]>([]);
 const atPickerRef = ref<InstanceType<typeof AtMentionPicker> | null>(null);
 const pickerElement = ref<HTMLElement | null>(null);
 
@@ -965,7 +965,7 @@ function handleAtPickerUpdatePosition()
     });
 }
 
-function handleAtSelect(user: { id: number; name: string })
+function handleAtSelect(user: { id: number; username: string })
 {
     const textarea = document.getElementById('message-in') as HTMLTextAreaElement;
     if (!textarea) return;
@@ -974,11 +974,11 @@ function handleAtSelect(user: { id: number; name: string })
     const afterAt = messageText.value.slice(atTriggerPosition.value + 1 + atFilter.value.length);
 
     // Insert: space + @ + username + space
-    const newText = beforeAt + ' @' + user.name + ' ' + afterAt;
+    const newText = beforeAt + ' @' + user.username + ' ' + afterAt;
     messageText.value = newText;
 
     // Set cursor position after inserted text
-    const newCursorPosition = atTriggerPosition.value + user.name.length + 3;
+    const newCursorPosition = atTriggerPosition.value + user.username.length + 3;
     nextTick(() =>
     {
         textarea.focus();
@@ -1022,7 +1022,7 @@ async function sendMessage(text: string)
             {
                 const chat = chatStore.currentChat;
                 if (!chat || !chat.members) continue;
-                const user = chat.members.find(u => u.name === mention.username!);
+                const user = chat.members.find(u => u.username === mention.username!);
                 if (user)
                 {
                     atUserIds.push(user.id);

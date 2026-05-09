@@ -10,12 +10,7 @@ export interface User
     privateKey?: string;
     signature?: string;
     isDonor?: boolean;
-}
-
-export interface ChatMember
-{
-    id: number;
-    name: string;
+    nickname?: string;
 }
 
 export interface Chat
@@ -30,6 +25,7 @@ export interface Chat
     doNotDisturb: boolean;
     burnTime?: number | null; // 阅后即焚时间（毫秒），null或undefined表示关闭
     otherUserIsDonor?: boolean; // 私聊对方是否是捐赠者（仅私聊有效）
+    requireApproval?: boolean; // 群聊邀请是否需要群主审批
 }
 
 export interface ReplyInfo
@@ -130,6 +126,7 @@ export interface ChatMember
     signature?: string;
     isDonor?: boolean;
     isOnline?: boolean;
+    nickname?: string;
 }
 
 export interface ChatDetails
@@ -139,14 +136,44 @@ export interface ChatDetails
         name: string | null;
         isPrivate: boolean;
         ownerId: number | null;
+        requireApproval?: boolean;
         members: ChatMember[];
     };
+}
+
+export interface FriendRequest
+{
+    id: number;
+    fromUser: number;
+    fromUsername: string;
+    fromNickname?: string;
+    toUser: number;
+    toUsername: string;
+    status: string; // "PENDING" | "ACCEPTED" | "REJECTED"
+    createdAt: string;
+    message?: string;
+}
+
+export interface GroupInvitation
+{
+    id: number;
+    chatId: number;
+    chatName: string | null;
+    inviterId: number;
+    inviterName: string;
+    targetUserId: number;
+    targetUsername: string;
+    encryptedKey: string;
+    status: string; // "PENDING" | "APPROVED" | "REJECTED"
+    createdAt: string;
 }
 
 export interface Friend
 {
     id: number;
     username: string;
+    nickname?: string;
+    remark?: string;
     canViewMoments?: boolean;
 }
 

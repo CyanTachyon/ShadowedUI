@@ -10,6 +10,15 @@
 
         <div class="header-right">
             <!-- Add Button & Menu -->
+            <button class="icon-button friend-requests-btn" @click="openFriendRequests" title="Friend Requests">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="8.5" cy="7" r="4"></circle>
+                    <line x1="20" y1="8" x2="20" y2="14"></line>
+                    <line x1="23" y1="11" x2="17" y2="11"></line>
+                </svg>
+                <span v-if="pendingRequestCount > 0" class="badge">{{ pendingRequestCount > 99 ? '…' : pendingRequestCount }}</span>
+            </button>
             <button class="icon-button plus-button" @click.stop="toggleAddMenu" title="Add New">
                 <PlusIcon />
             </button>
@@ -24,12 +33,21 @@
 
 <script setup lang="ts">
 import { useUserStore, useChatStore, useUIStore } from '@/stores';
+import { computed } from 'vue';
 import PlusIcon from './icons/PlusIcon.vue';
 import { wsService } from '@/services/websocket';
 
 const userStore = useUserStore();
 const chatStore = useChatStore();
 const uiStore = useUIStore();
+
+const pendingRequestCount = computed(() => chatStore.friendRequests.length);
+
+function openFriendRequests()
+{
+    uiStore.showFriendRequestsModal = true;
+    chatStore.getFriendRequests();
+}
 
 function openOwnProfile()
 {
@@ -80,6 +98,27 @@ function openCreateGroup()
     display: flex;
     align-items: center;
     position: relative;
+    gap: 4px;
+}
+
+.friend-requests-btn {
+    position: relative;
+}
+
+.badge {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    background: var(--primary-color);
+    color: white;
+    border-radius: 50%;
+    width: 18px;
+    height: 18px;
+    font-size: 0.65em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
 }
 
 .avatar-container {

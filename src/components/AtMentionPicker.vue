@@ -9,7 +9,7 @@
             @mouseenter="selectedIndex = index"
         >
             <img :src="getAvatarUrl(user.id)" class="user-avatar" alt="avatar" loading="lazy" />
-            <span class="user-name">{{ user.name }}</span>
+            <span class="user-name">{{ user.username }}</span>
         </div>
         <div v-if="filteredUsers.length === 0" class="no-results">No users found</div>
     </div>
@@ -21,7 +21,7 @@ import { getAvatarUrl } from '@/utils/helpers';
 
 interface User {
     id: number;
-    name: string;
+    username: string;
 }
 
 const props = defineProps<{
@@ -50,11 +50,11 @@ const filteredUsers = computed(() =>
     }
     const filterLower = props.filter.toLowerCase();
     return props.users
-        .filter(user => user.name.toLowerCase().includes(filterLower))
+        .filter(user => user.username.toLowerCase().includes(filterLower))
         .sort((a, b) =>
         {
-            const aIndex = a.name.toLowerCase().indexOf(filterLower);
-            const bIndex = b.name.toLowerCase().indexOf(filterLower);
+            const aIndex = a.username.toLowerCase().indexOf(filterLower);
+            const bIndex = b.username.toLowerCase().indexOf(filterLower);
             return aIndex - bIndex;
         });
 });

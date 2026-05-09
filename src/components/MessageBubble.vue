@@ -11,7 +11,7 @@
     <div :class="['message', isMe ? 'sent' : 'received']" :style="{ marginLeft: showSender ? '40px' : '0' }" v-bind="$attrs" @contextmenu.prevent="handleContextMenu" @touchstart="handleTouchStart" @touchend="handleTouchEnd" @touchmove="handleTouchMove">
         <!-- Sender info for group chats -->
         <template v-if="showSender">
-            <div class="message-sender" @click="openUserProfile">{{ message.senderName || `User ${message.senderId}` }}</div>
+            <div class="message-sender" @click="openUserProfile">{{ senderDisplayName }}</div>
             <div class="sender-avatar-wrapper">
                 <img :src="getAvatarUrl(message.senderId)" class="sender-avatar" alt="avatar" loading="lazy" @click="openUserProfile" />
                 <DonorBadgeIcon v-if="message.senderIsDonor" class="donor-badge" />
@@ -247,6 +247,23 @@ const showSender = computed(() =>
     const chat = chatStore.chats.find(c => c.chatId === props.message.chatId);
     return chat && !chat.isPrivate;
 });
+
+const senderDisplayName = computed(() =>
+{
+    if (!props.message.senderId) return '';
+    // Check friend remark/nickname
+    const friend = chatStore.friends.find(f => f.id === props.message.senderId);
+    if (friend?.remark) return friend.remark;
+    if (friend?.nickname) return friend.nickname;
+    // Check chat member nickname
+    const chat = chatStore.chats.find(c => c.chatId === props.message.chatId);
+    if (chat?.members)
+    {
+        const member = chat.members.find(m => m.id === props.message.senderId);
+        if (member?.nickname) return member.nickname;
+    }
+    return props.message.senderName || `User ${props.message.senderId}`;
+});
  
 const isReplyToImage = computed(() =>
 {
@@ -333,7 +350,7 @@ const contentChunks = computed(() =>
     
     // Get current chat members for validation
     const chat = chatStore.chats.find(c => c.chatId === props.message.chatId);
-    const chatMembers = chat?.members?.map(m => m.name) || [];
+    const chatMembers = chat?.members?.map(m => m.username) || [];
     
     // Parse mentions and check if username is in current chat
     const chunks = parseAtMentions(decryptedContent.value);
@@ -580,7 +597,7 @@ function handleAtClick(username: string | undefined)
     if (!chat || !chat.members) return;
 
     // Find user by username in members array
-    const user = chat.members.find(u => u.name === username);
+    const user = chat.members.find(u => u.username === username);
     if (user)
     {
         uiStore.navigateToProfile(user.id);

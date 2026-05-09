@@ -23,6 +23,8 @@
         <MomentSettingsModal />
         <SearchUserByIdModal />
         <SearchUserByNameModal />
+        <FriendRequestsModal />
+        <GroupInvitationsModal />
     </div>
 </template>
 
@@ -44,6 +46,8 @@ import DeleteChatModal from '@/components/modals/DeleteChatModal.vue';
 import MomentSettingsModal from '@/components/modals/MomentSettingsModal.vue';
 import SearchUserByIdModal from '@/components/modals/SearchUserByIdModal.vue';
 import SearchUserByNameModal from '@/components/modals/SearchUserByNameModal.vue';
+import FriendRequestsModal from '@/components/modals/FriendRequestsModal.vue';
+import GroupInvitationsModal from '@/components/modals/GroupInvitationsModal.vue';
 
 const userStore = useUserStore();
 const chatStore = useChatStore();
@@ -86,6 +90,52 @@ function setupWebSocketHandlers()
         chatStore.showToast(data.message, 'success');
         chatStore.refreshChats();
         chatStore.pendingChatToOpen = data.chatId;
+    });
+
+    wsService.on('friend_request_received', (data) =>
+    {
+        chatStore.showToast(`New friend request from ${data.request.fromNickname || data.request.fromUsername}`, 'info');
+        chatStore.getFriendRequests(); // Refresh the list
+    });
+
+    wsService.on('friend_request_accepted', (data) =>
+    {
+        chatStore.showToast(`${data.acceptedByUsername} accepted your friend request!`, 'success');
+        chatStore.refreshChats();
+        chatStore.pendingChatToOpen = data.chatId;
+    });
+
+    wsService.on('friend_request_rejected', (data) =>
+    {
+        chatStore.showToast(`${data.rejectedByUsername} rejected your friend request`, 'warning');
+    });
+
+    wsService.on('friend_requests_list', (data) =>
+    {
+        chatStore.friendRequests = data.requests;
+    });
+
+    wsService.on('group_invitation_received', (data) =>
+    {
+        chatStore.showToast(`New member invitation in "${data.chatName}" needs your approval`, 'info');
+        chatStore.getGroupInvitations(); // Refresh the list
+    });
+
+    wsService.on('group_invitation_approved', (data) =>
+    {
+        chatStore.showToast('Group invitation approved', 'success');
+        chatStore.refreshChats();
+        chatStore.pendingChatToOpen = data.chatId;
+    });
+
+    wsService.on('group_invitation_rejected', () =>
+    {
+        chatStore.showToast('Group invitation was rejected', 'info');
+    });
+
+    wsService.on('group_invitations_list', (data) =>
+    {
+        chatStore.groupInvitations = data.invitations;
     });
 
     wsService.on('broadcasts_list', chatStore.handleBroadcastsList);

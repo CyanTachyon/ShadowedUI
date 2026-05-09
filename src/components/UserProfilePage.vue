@@ -5,7 +5,8 @@
                 <div class="avatar-container">
                     <img v-if="userId" :src="getAvatarUrl(userId)" class="profile-avatar" alt="avatar" />
                     <DonorBadgeIcon v-if="user?.isDonor" class="profile-donor-badge" />
-                    <div v-if="user?.username">{{ user.username }}</div>
+                    <div v-if="user?.nickname" class="profile-nickname">{{ user.nickname }}</div>
+                    <div v-if="user?.username" class="profile-username">{{ user.username }}</div>
                     <div class="profile-signature">ID: {{ userId }}</div>
                 </div>
             </div>
@@ -45,10 +46,19 @@
                 </div>
 
                 <div class="action-section">
-                    <button v-if="userId !== userStore.userId" class="action-button primary" @click="startChat">
-                        <MessageIcon />
-                        <span>Send Message</span>
-                    </button>
+                    <template v-if="userId !== userStore.userId">
+                        <button v-if="isFriend" class="action-button primary" @click="startChat">
+                            <MessageIcon />
+                            <span>Send Message</span>
+                        </button>
+                        <button v-else-if="hasPendingRequest" class="action-button" disabled>
+                            <span>Request Pending</span>
+                        </button>
+                        <button v-else class="action-button primary" @click="sendFriendRequest">
+                            <PlusIcon />
+                            <span>Add Friend</span>
+                        </button>
+                    </template>
                     <button class="action-button secondary" @click="goBack">
                         <ArrowLeftIcon />
                         <span>Back</span>
@@ -78,17 +88,22 @@ import type { MomentPermission } from '@/types';
 import DonorBadgeIcon from './icons/DonorBadgeIcon.vue';
 import MessageIcon from './icons/MessageIcon.vue';
 import ArrowLeftIcon from './icons/ArrowLeftIcon.vue';
+import PlusIcon from './icons/PlusIcon.vue';
 
 const chatStore = useChatStore();
 const uiStore = useUIStore();
 const userStore = useUserStore();
 
 const loading = ref(true);
-const user = ref<{ id: number; username: string; signature: string | null; isDonor?: boolean; } | null>(null);
+const user = ref<{ id: number; username: string; nickname?: string; signature: string | null; isDonor?: boolean; } | null>(null);
 const momentPermission = ref<MomentPermission | null>(null);
 const loadingPermission = ref(false);
 
 const userId = computed(() => uiStore.profileUserId);
+
+const isFriend = computed(() => userId.value ? chatStore.friends.some(f => f.id === userId.value) : false);
+
+const hasPendingRequest = computed(() => userId.value ? chatStore.friendRequests.some(r => r.fromUser === userId.value || r.toUser === userId.value) : false);
 
 watch(() => uiStore.profileUserId, async (newUserId) =>
 {
@@ -109,6 +124,8 @@ watch(() => uiStore.viewState, (newState) =>
 
 onMounted(async () =>
 {
+    // Refresh friends list to ensure isFriend check is up-to-date
+    wsService.send('get_friends');
     if (userId.value)
     {
         await loadUserProfile(userId.value);
@@ -139,6 +156,8 @@ async function loadUserProfile(targetUserId: number)
         if (userInfo)
         {
             user.value = userInfo;
+            // Also load friend requests to check pending status
+            chatStore.getFriendRequests();
         }
         else
         {
@@ -171,7 +190,7 @@ function getUsernameById(targetUserId: number): string | null
         const member = chat.members.find(m => m.id === targetUserId);
         if (member)
         {
-            return member.name;
+            return member.nickname || member.username;
         }
     }
 
@@ -197,9 +216,24 @@ function getUsernameById(targetUserId: number): string | null
 
 function startChat()
 {
-    if (!user.value) return;
+    if (!user.value || !isFriend.value) return;
+    // Find or navigate to existing chat
+    const existingChat = chatStore.chats.find(c => c.isPrivate && c.members?.some(m => m.id === userId.value));
+    if (existingChat)
+    {
+        chatStore.selectChat(existingChat);
+    }
+    else
+    {
+        uiStore.setViewState('list');
+    }
+}
 
-    chatStore.addFriend(user.value.username);
+function sendFriendRequest()
+{
+    if (!user.value) return;
+    chatStore.sendFriendRequest(user.value.username);
+    chatStore.showToast('Friend request sent', 'success');
 }
 
 // Moment permission functions
@@ -453,6 +487,17 @@ function goBack()
     line-height: 1.5;
 }
 
+.profile-nickname {
+    font-size: 1.1em;
+    font-weight: 600;
+    color: var(--text-color);
+}
+
+.profile-username {
+    font-size: 0.9em;
+    color: var(--text-secondary);
+}
+
 .profile-loading {
     display: flex;
     flex-direction: column;
@@ -600,6 +645,14 @@ function goBack()
 .action-button.secondary:hover {
     background-color: var(--hover-bg);
     border-color: var(--text-secondary);
+}
+
+.action-button[disabled] {
+    opacity: 0.6;
+    cursor: not-allowed;
+    background: var(--input-bg);
+    color: var(--secondary-color);
+    border: 1px solid var(--border-color);
 }
 
 .profile-error {

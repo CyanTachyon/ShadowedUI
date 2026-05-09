@@ -17,7 +17,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import type { Broadcast } from '@/types';
-import { useUserStore, useUIStore } from '@/stores';
+import { useUserStore, useUIStore, useChatStore } from '@/stores';
 import { getAvatarUrl, formatDate, getUserId } from '@/utils/helpers';
 import DonorBadgeIcon from './icons/DonorBadgeIcon.vue';
 
@@ -27,6 +27,7 @@ const props = defineProps<{
 
 const userStore = useUserStore();
 const uiStore = useUIStore();
+const chatStore = useChatStore();
 
 const isMyBroadcast = computed(() =>
 {
@@ -57,7 +58,19 @@ const senderDisplay = computed(() =>
 {
     if (isSystem.value) return '📢 System Broadcast';
     if (isAnonymous.value) return '🎭 Anonymous User';
-    if (isMyBroadcast.value) return userStore.currentUser?.username || 'Me';
+    if (isMyBroadcast.value)
+    {
+        const myRemark = userStore.currentUser?.nickname || userStore.currentUser?.username || 'Me';
+        return myRemark;
+    }
+    // Check friend remark > nickname > senderName
+    const senderId = props.broadcast.senderId;
+    if (senderId)
+    {
+        const friend = chatStore.friends.find(f => f.id === senderId);
+        if (friend?.remark) return friend.remark;
+        if (friend?.nickname) return friend.nickname;
+    }
     return props.broadcast.senderName || 'Unknown';
 });
 

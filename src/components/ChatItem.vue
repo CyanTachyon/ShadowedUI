@@ -33,7 +33,7 @@
 import { computed } from 'vue';
 import type { Chat } from '@/types';
 import { getAvatarUrl, getGroupAvatarUrl } from '@/utils/helpers';
-import { useUserStore } from '@/stores';
+import { useUserStore, useChatStore } from '@/stores';
 import DonorBadgeIcon from './icons/DonorBadgeIcon.vue';
 
 const props = defineProps<{
@@ -46,20 +46,37 @@ defineEmits<{
 }>();
 
 const userStore = useUserStore();
+const chatStore = useChatStore();
 
 const isGroup = computed(() => !props.chat.isPrivate);
 
-const displayName = computed(() => props.chat.name || 'Chat ' + props.chat.chatId);
+const displayName = computed(() =>
+{
+    if (isGroup.value) return props.chat.name || 'Chat ' + props.chat.chatId;
+    // For private chats: remark > nickname > username
+    const otherMember = props.chat.members?.find(m => m.id !== myUserId.value);
+    if (otherMember)
+    {
+        const friend = chatStore.friends.find(f => f.id === otherMember.id);
+        if (friend?.remark) return friend.remark;
+        if (otherMember.nickname) return otherMember.nickname;
+    }
+    return props.chat.name || 'Chat ' + props.chat.chatId;
+});
+
+const myUserId = computed(() =>
+{
+    if (!userStore.currentUser) return -1;
+    return typeof userStore.currentUser.id === 'object'
+        ? userStore.currentUser.id.value
+        : userStore.currentUser.id;
+});
 
 const otherId = computed(() =>
 {
-    // For private chats, find the other user (not the current user)
-    if (props.chat.isPrivate && props.chat.members && userStore.currentUser)
+    if (props.chat.isPrivate && props.chat.members)
     {
-        const myUserId = typeof userStore.currentUser.id === 'object'
-            ? userStore.currentUser.id.value
-            : userStore.currentUser.id;
-        const otherMember = props.chat.members.find(m => m.id !== myUserId);
+        const otherMember = props.chat.members.find(m => m.id !== myUserId.value);
         return otherMember?.id || null;
     }
     return null;

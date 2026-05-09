@@ -43,6 +43,20 @@
             <div class="settings-section">
                 <div class="section-title" v-if="!isPrivate">Members ({{ members.length }})</div>
 
+                <!-- Require Approval for group chats (owner only) - shown before member list -->
+                <div v-if="!isPrivate && isOwner" class="approval-controls">
+                    <div class="approval-toggle">
+                        <span>Invite requires approval</span>
+                        <button class="toggle-btn" :class="{ active: requireApproval }" @click="toggleRequireApproval">
+                            {{ requireApproval ? 'On' : 'Off' }}
+                        </button>
+                    </div>
+                    <button v-if="requireApproval" class="button view-invitations-btn" @click="showGroupInvitations">
+                        Pending Invitations
+                        <span v-if="pendingInvitationCount > 0" class="invitations-badge">{{ pendingInvitationCount }}</span>
+                    </button>
+                </div>
+
                 <button v-if="!isPrivate" class="button invite-btn" @click="showInviteModal">
                     Invite Member
                 </button>
@@ -55,7 +69,7 @@
                             <!-- <DonorBadgeIcon v-if="member.isDonor" class="member-donor-badge" /> -->
                         </div>
                         <span class="member-name" @click="openUserProfile(member.id)">
-                            {{ member.username }}
+                            {{ getMemberDisplayName(member) }}
                             <span v-if="member.id === ownerId" class="owner-badge">(Owner)</span>
                             <span v-if="member.id === myId" class="me-badge">(Me)</span>
                         </span>
@@ -72,6 +86,12 @@
             </div>
 
             <div v-if="isPrivate" class="settings-section">
+                <!-- Friend Remark -->
+                <div class="remark-section">
+                    <div class="section-title">Friend Remark</div>
+                    <input v-model="friendRemark" type="text" class="remark-input" placeholder="Set a remark for this friend" maxlength="100" @blur="saveRemark" @keyup.enter="saveRemark" />
+                </div>
+
                 <button class="button do-not-disturb-btn" :class="{ active: chatStore.isDoNotDisturb }" @click="chatStore.setDoNotDisturb(!chatStore.isDoNotDisturb)" style="width: 100%;">
                     {{ chatStore.isDoNotDisturb ? 'Disable' : 'Enable' }} Do Not Disturb
                 </button>
@@ -208,6 +228,12 @@ const myId = computed(() =>
 
 const isOwner = computed(() => ownerId.value === myId.value);
 
+const requireApproval = computed(() => details.value?.requireApproval ?? false);
+
+const friendRemark = ref('');
+
+const pendingInvitationCount = computed(() => chatStore.groupInvitations.filter(inv => inv.chatId === chatId.value).length);
+
 const otherMemberId = computed(() =>
 {
     if (!isPrivate.value) return null;
@@ -227,6 +253,25 @@ function renameChat()
     if (!newName.value.trim()) return;
     chatStore.updateChatName(newName.value.trim());
     newName.value = '';
+}
+
+function saveRemark()
+{
+    if (!otherMemberId.value) return;
+    const trimmed = friendRemark.value.trim();
+    chatStore.updateFriendRemark(otherMemberId.value, trimmed || null);
+}
+
+function toggleRequireApproval()
+{
+    if (!chatId.value) return;
+    chatStore.setRequireApproval(chatId.value, !requireApproval.value);
+}
+
+function showGroupInvitations()
+{
+    chatStore.getGroupInvitations();
+    uiStore.showGroupInvitationsModal = true;
 }
 
 function leaveGroup()
@@ -251,6 +296,17 @@ function showInviteModal()
     chatStore.invitingToChat = true;
     uiStore.showCreateGroupModal = true;
     wsService.send('get_friends');
+}
+
+function getMemberDisplayName(member: ChatMember): string
+{
+    // For other members, check remark > nickname > username
+    if (member.id !== myId.value)
+    {
+        const friend = chatStore.friends.find(f => f.id === member.id);
+        if (friend?.remark) return friend.remark;
+    }
+    return member.nickname || member.username;
 }
 
 function openUserProfile(userId: number)
@@ -529,6 +585,9 @@ watch(() => details.value, () =>
     if (isPrivate.value && otherMemberId.value)
     {
         loadMomentPermission();
+        // Load friend remark
+        const friend = chatStore.friends.find(f => f.id === otherMemberId.value);
+        friendRemark.value = friend?.remark || '';
     }
 }, { immediate: true });
 
@@ -886,6 +945,80 @@ onMounted(() =>
     color: var(--text-color);
     font-style: italic;
     word-break: break-word;
+}
+
+.remark-section {
+    margin-bottom: 15px;
+}
+
+.remark-input {
+    width: 100%;
+    padding: 8px 12px;
+    background: var(--input-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    color: var(--text-color);
+    font-size: 0.9em;
+    outline: none;
+    box-sizing: border-box;
+    transition: border-color 0.2s;
+}
+
+.remark-input:focus {
+    border-color: var(--primary-color);
+}
+
+.approval-controls {
+    margin: 15px 0;
+    padding-top: 10px;
+    border-top: 1px solid var(--border-color);
+}
+
+.approval-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+    font-size: 0.9em;
+    color: var(--text-color);
+}
+
+.toggle-btn {
+    padding: 4px 16px;
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
+    background: var(--input-bg);
+    color: var(--secondary-color);
+    cursor: pointer;
+    font-size: 0.85em;
+    transition: all 0.2s;
+}
+
+.toggle-btn.active {
+    background: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+}
+
+.view-invitations-btn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+.invitations-badge {
+    background: var(--primary-color);
+    color: white;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    font-size: 0.7em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
 }
 
 @media (max-width: 768px) {

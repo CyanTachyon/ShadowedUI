@@ -15,12 +15,12 @@
                     <div v-for="friend in availableFriends" :key="friend.id" class="friend-select-item" @click="toggleFriend(friend)">
                         <template v-if="isInviting">
                             <img :src="getAvatarUrl(friend.id)" class="avatar" alt="avatar" loading="lazy" />
-                            <span>{{ friend.username }}</span>
+                            <span>{{ friend.remark || friend.nickname || friend.username }}</span>
                         </template>
                         <template v-else>
                             <input type="checkbox" :checked="selectedFriends.has(friend.username)"/>
                             <img :src="getAvatarUrl(friend.id)" class="avatar" alt="avatar" loading="lazy" />
-                            <span>{{ friend.username }}</span>
+                            <span>{{ friend.remark || friend.nickname || friend.username }}</span>
                         </template>
                     </div>
                 </div>

@@ -4,7 +4,8 @@
             <div class="modal-content">
                 <h3>Add Friend</h3>
                 <input v-model="friendUsername" type="text" placeholder="Friend's Username" @keyup.enter="addFriend" />
-                <button class="button" @click="addFriend">Add</button>
+                <input v-model="requestMessage" type="text" placeholder="Verification message (optional)" @keyup.enter="addFriend" />
+                <button class="button" @click="addFriend">Send Request</button>
                 <button class="button cancel" @click="close">Cancel</button>
             </div>
         </div>
@@ -19,6 +20,7 @@ const uiStore = useUIStore();
 const chatStore = useChatStore();
 
 const friendUsername = ref('');
+const requestMessage = ref('');
 
 async function addFriend()
 {
@@ -28,8 +30,9 @@ async function addFriend()
         return;
     }
 
-    await chatStore.addFriend(friendUsername.value.trim());
+    chatStore.sendFriendRequest(friendUsername.value.trim(), requestMessage.value.trim() || undefined);
     friendUsername.value = '';
+    requestMessage.value = '';
     close();
 }
 
@@ -37,6 +40,7 @@ function close()
 {
     uiStore.showAddFriendModal = false;
     friendUsername.value = '';
+    requestMessage.value = '';
 }
 </script>
 

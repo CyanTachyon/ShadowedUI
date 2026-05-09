@@ -57,21 +57,34 @@ const currentChat = computed(() => chatStore.currentChat);
 
 const isGroup = computed(() => currentChat.value && !currentChat.value.isPrivate);
 
+const myUserId = computed(() =>
+{
+    if (!userStore.currentUser) return -1;
+    return typeof userStore.currentUser.id === 'object'
+        ? userStore.currentUser.id.value
+        : userStore.currentUser.id;
+});
+
 const displayName = computed(() =>
 {
     if (!currentChat.value) return '';
+    if (isGroup.value) return currentChat.value.name || `Chat ${currentChat.value.chatId}`;
+    // Private chat: remark > nickname > username
+    const otherMember = currentChat.value.members?.find(m => m.id !== myUserId.value);
+    if (otherMember)
+    {
+        const friend = chatStore.friends.find(f => f.id === otherMember.id);
+        if (friend?.remark) return friend.remark;
+        if (otherMember.nickname) return otherMember.nickname;
+    }
     return currentChat.value.name || `Chat ${currentChat.value.chatId}`;
 });
 
 const otherId = computed(() =>
 {
-    // For private chats, find the other user (not the current user)
-    if (currentChat.value?.isPrivate && currentChat.value?.members && userStore.currentUser)
+    if (currentChat.value?.isPrivate && currentChat.value?.members)
     {
-        const myUserId = typeof userStore.currentUser.id === 'object'
-            ? userStore.currentUser.id.value
-            : userStore.currentUser.id;
-        const otherMember = currentChat.value.members.find(m => m.id !== myUserId);
+        const otherMember = currentChat.value.members.find(m => m.id !== myUserId.value);
         return otherMember?.id || null;
     }
     return null;

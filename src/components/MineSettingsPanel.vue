@@ -12,9 +12,15 @@
                 <input id="avatar-upload" ref="avatarInput" type="file" accept="image/*" style="display: none" @change="handleAvatarSelect" />
             </div>
             <div class="mine-user-info">
-                <div class="mine-username">{{ userStore.currentUser?.username || 'User' }}</div>
+                <div class="mine-username">{{ userStore.currentUser?.nickname || userStore.currentUser?.username || 'User' }}</div>
                 <div class="mine-user-id">ID: {{ userStore.userId }}</div>
             </div>
+        </div>
+
+        <div class="mine-nickname-section">
+            <div class="signature-label">Nickname</div>
+            <input v-model="nickname" type="text" class="signature-input" placeholder="Enter your nickname (max 50 chars)" maxlength="50" @blur="saveNickname" @keyup.enter="saveNickname" />
+            <div class="char-count">{{ nickname.length }}/50</div>
         </div>
 
         <div class="mine-signature-section">
@@ -118,6 +124,7 @@ const uiStore = useUIStore();
 const backgroundInput = ref<HTMLInputElement | null>(null);
 const avatarInput = ref<HTMLInputElement | null>(null);
 const signature = ref(userStore.currentUser?.signature || '');
+const nickname = ref(userStore.currentUser?.nickname || '');
 
 // 图片裁剪相关状态
 const showImageCropper = ref(false);
@@ -131,6 +138,26 @@ watch(() => userStore.currentUser?.signature, (newSignature) =>
         signature.value = newSignature;
     }
 });
+
+watch(() => userStore.currentUser?.nickname, (newNickname) =>
+{
+    if (newNickname !== undefined)
+    {
+        nickname.value = newNickname || '';
+    }
+});
+
+function saveNickname()
+{
+    const trimmed = nickname.value.trim() || null;
+    if (trimmed === userStore.currentUser?.nickname) return;
+    chatStore.updateNickname(trimmed);
+    if (userStore.currentUser)
+    {
+        userStore.currentUser.nickname = trimmed || undefined;
+    }
+    chatStore.showToast('Nickname updated', 'success');
+}
 
 function saveSignature()
 {

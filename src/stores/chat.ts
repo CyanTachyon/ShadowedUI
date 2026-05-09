@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import type { Chat, Message, Broadcast, ChatDetails, Friend, Toast, ToastType, UploadTask } from '@/types';
+import type { Chat, Message, Broadcast, ChatDetails, Friend, Toast, ToastType, UploadTask, FriendRequest, GroupInvitation } from '@/types';
 import { wsService } from '@/services/websocket';
 import { fetchPublicKeyByUsername } from '@/services/api';
 import
@@ -47,6 +47,8 @@ export const useChatStore = defineStore('chat', () =>
     const showSettingsPanel = ref(false);
     const invitingToChat = ref(false);
     const friends = ref<Friend[]>([]);
+    const friendRequests = ref<FriendRequest[]>([]);
+    const groupInvitations = ref<GroupInvitation[]>([]);
     const messagesLoading = ref(false);
 
     // Computed
@@ -374,11 +376,56 @@ export const useChatStore = defineStore('chat', () =>
     // Friend management
     async function addFriend(targetUsername: string): Promise<void>
     {
-        const userStore = useUserStore();
-
         try
         {
-            const targetPublicKeyStr = await fetchPublicKeyByUsername(targetUsername);
+            wsService.sendPacket('add_friend', {
+                targetUsername
+            });
+        }
+        catch (e: any)
+        {
+            console.error('Add friend error', e);
+            showToast('Failed: ' + e.message, 'error');
+        }
+    }
+
+    /**
+     * Send a friend request with optional message
+     */
+    async function sendFriendRequest(targetUsername: string, message?: string): Promise<void>
+    {
+        try
+        {
+            wsService.sendPacket('send_friend_request', {
+                targetUsername,
+                message: message || null
+            });
+        }
+        catch (e: any)
+        {
+            console.error('Send friend request error', e);
+            showToast('Failed: ' + e.message, 'error');
+        }
+    }
+
+    /**
+     * Accept a friend request. Generates chat key and sends to server.
+     */
+    async function acceptFriendRequest(requestId: number): Promise<void>
+    {
+        const userStore = useUserStore();
+        try
+        {
+            // Find the request to get the requester's username
+            const request = friendRequests.value.find(r => r.id === requestId);
+            if (!request)
+            {
+                showToast('Friend request not found', 'error');
+                return;
+            }
+
+            // Get the requester's public key
+            const targetPublicKeyStr = await fetchPublicKeyByUsername(request.fromUsername);
             if (!targetPublicKeyStr)
             {
                 showToast('User not found or no key', 'error');
@@ -387,27 +434,124 @@ export const useChatStore = defineStore('chat', () =>
 
             const targetPublicKey = await importPublicKey(targetPublicKeyStr);
             const myPublicKey = await userStore.getMyPublicKey();
-
             if (!myPublicKey)
             {
                 throw new Error('My public key unavailable');
             }
 
+            // Generate symmetric key for the chat
             const symmetricKey = await generateSymmetricKey();
-            const encryptedKeyForFriend = await encryptSymmetricKey(symmetricKey, targetPublicKey);
-            const encryptedKeyForSelf = await encryptSymmetricKey(symmetricKey, myPublicKey);
+            const keyForRequester = await encryptSymmetricKey(symmetricKey, targetPublicKey);
+            const keyForSelf = await encryptSymmetricKey(symmetricKey, myPublicKey);
 
-            wsService.sendPacket('add_friend', {
-                targetUsername,
-                keyForFriend: encryptedKeyForFriend,
-                keyForSelf: encryptedKeyForSelf
+            wsService.sendPacket('accept_friend_request', {
+                requestId,
+                keyForRequester,
+                keyForSelf
             });
         }
         catch (e: any)
         {
-            console.error('Add friend error', e);
+            console.error('Accept friend request error', e);
             showToast('Failed: ' + e.message, 'error');
         }
+    }
+
+    /**
+     * Reject a friend request
+     */
+    function rejectFriendRequest(requestId: number): void
+    {
+        wsService.sendPacket('reject_friend_request', { requestId });
+    }
+
+    /**
+     * Get all pending friend requests
+     */
+    function getFriendRequests(): void
+    {
+        wsService.send('get_friend_requests');
+    }
+
+    /**
+     * Update nickname
+     */
+    function updateNickname(nickname: string | null): void
+    {
+        wsService.sendPacket('update_nickname', { nickname });
+        // Refresh friends list to reflect updated nickname
+        wsService.send('get_friends');
+    }
+
+    /**
+     * Update friend remark
+     */
+    function updateFriendRemark(friendId: number, remark: string | null): void
+    {
+        wsService.sendPacket('update_friend_remark', { friendId, remark });
+        // Refresh friends list to reflect updated remark
+        wsService.send('get_friends');
+    }
+
+    /**
+     * Set require approval for a group chat
+     */
+    function setRequireApproval(chatId: number, requireApproval: boolean): void
+    {
+        wsService.sendPacket('set_require_approval', { chatId, requireApproval });
+        // Refresh chat details to reflect updated requireApproval
+        wsService.sendPacket('get_chat_details', { chatId });
+    }
+
+    /**
+     * Get group invitations for groups owned by current user
+     */
+    function getGroupInvitations(): void
+    {
+        wsService.send('get_group_invitations');
+    }
+
+    /**
+     * Approve or reject a group invitation
+     */
+    function handleGroupInvitation(invitationId: number, approve: boolean): void
+    {
+        wsService.sendPacket('handle_group_invitation', { invitationId, approve });
+    }
+
+    /**
+     * Get the display name for a user based on friend info (remark > nickname > username)
+     */
+    function getDisplayName(userId: number): string
+    {
+        // Check friends list first for remark
+        const friend = friends.value.find(f => f.id === userId);
+        if (friend?.remark) return friend.remark;
+        if (friend?.nickname) return friend.nickname;
+
+        // Check chat members for nickname
+        for (const chat of chats.value)
+        {
+            const member = chat.members?.find(m => m.id === userId);
+            if (member)
+            {
+                if (member.nickname) return member.nickname;
+                return member.username || `User ${userId}`;
+            }
+        }
+
+        // Check current chat details
+        if (currentChatDetails.value)
+        {
+            const member = currentChatDetails.value.members.find(m => m.id === userId);
+            if (member)
+            {
+                if (member.nickname) return member.nickname;
+                return member.username;
+            }
+        }
+
+        return `User ${userId}`;
     }
 
     // Group management
@@ -660,6 +804,7 @@ export const useChatStore = defineStore('chat', () =>
     function refreshChats(): void
     {
         wsService.send('get_chats');
+        wsService.send('get_friends');
     }
 
     function setFriends(friendsList: Friend[]): void
@@ -755,6 +900,8 @@ export const useChatStore = defineStore('chat', () =>
         showSettingsPanel,
         invitingToChat,
         friends,
+        friendRequests,
+        groupInvitations,
         messagesLoading,
 
         // Computed
@@ -778,6 +925,16 @@ export const useChatStore = defineStore('chat', () =>
         refreshBroadcasts,
         handleBroadcastsList,
         addFriend,
+        sendFriendRequest,
+        acceptFriendRequest,
+        rejectFriendRequest,
+        getFriendRequests,
+        updateNickname,
+        updateFriendRemark,
+        setRequireApproval,
+        getGroupInvitations,
+        handleGroupInvitation,
+        getDisplayName,
         createGroup,
         inviteMemberToChat,
         toggleChatSettings,
